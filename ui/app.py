@@ -3,7 +3,13 @@ import threading
 import customtkinter as ctk
 
 from hardware.collector import coletar
-from hardware.thresholds import RastreadorAlerta, classificar
+from hardware.thresholds import (
+    RastreadorAlerta,
+    classificar,
+    classificar_temperatura,
+    descricao_temperatura,
+    estimar_temperatura,
+)
 from notifications.manager import GerenciadorNotificacoes
 from ui.components.cards import CartaoRecurso
 
@@ -25,16 +31,24 @@ class AplicativoMonitor(ctk.CTkFrame):
             "cpu": RastreadorAlerta(),
             "ram": RastreadorAlerta(),
             "disco": RastreadorAlerta(),
+            "temperatura": RastreadorAlerta(),
         }
         self._notificadores = {
             "cpu": GerenciadorNotificacoes(),
             "ram": GerenciadorNotificacoes(),
             "disco": GerenciadorNotificacoes(),
+            "temperatura": GerenciadorNotificacoes(),
         }
         self._cards = {
             "cpu": CartaoRecurso(self, titulo="CPU"),
             "ram": CartaoRecurso(self, titulo="RAM"),
             "disco": CartaoRecurso(self, titulo="Disco"),
+            "temperatura": CartaoRecurso(
+                self,
+                titulo="Temperatura",
+                descricao_fn=descricao_temperatura,
+                formatar_valor=lambda v: f"~{v:.0f}°C",
+            ),
         }
         self._botao_tema = ctk.CTkButton(
             self,
@@ -53,7 +67,7 @@ class AplicativoMonitor(ctk.CTkFrame):
         for i, card in enumerate(self._cards.values()):
             pady = (20, 0) if i == 0 else (8, 0)
             card.grid(row=i, column=0, padx=20, pady=pady, sticky="ew")
-        self._botao_tema.grid(row=3, column=0, pady=16)
+        self._botao_tema.grid(row=4, column=0, pady=16)
 
     def _iniciar_coleta(self) -> None:
         thread = threading.Thread(target=self._loop_coleta, daemon=True)
@@ -81,8 +95,14 @@ class AplicativoMonitor(ctk.CTkFrame):
         for recurso, percentual in mapeamento.items():
             status_bruto = classificar(percentual)
             status = self._rastreadores[recurso].atualizar(status_bruto)
-            self._cards[recurso].atualizar(status)
+            self._cards[recurso].atualizar(status, percentual)
             self._notificadores[recurso].processar(status)
+
+        temp_estimada = estimar_temperatura(dados.cpu)
+        status_bruto = classificar_temperatura(temp_estimada)
+        status = self._rastreadores["temperatura"].atualizar(status_bruto)
+        self._cards["temperatura"].atualizar(status, temp_estimada)
+        self._notificadores["temperatura"].processar(status)
 
     def _alternar_tema(self) -> None:
         if ctk.get_appearance_mode() == "Dark":

@@ -1,41 +1,65 @@
-from unittest.mock import patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from hardware.collector import DadosHardware
 from hardware.thresholds import Status
 
 
-@pytest.fixture(scope="module")
-def monitor(raiz):
-    dados_mock = DadosHardware(cpu=10.0, ram=20.0, disco=30.0)
-    with patch("ui.app.coletar", return_value=dados_mock):
-        from ui.app import AplicativoMonitor
-        app = AplicativoMonitor(raiz)
-        yield app
-        app._rodando = False
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
+def test_monitor_tem_quatro_cards(_, raiz):
+    from ui.app import AplicativoMonitor
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    assert set(app._cards.keys()) == {"cpu", "ram", "disco", "temperatura"}
 
 
-def test_monitor_tem_tres_cards(monitor):
-    assert set(monitor._cards.keys()) == {"cpu", "ram", "disco"}
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
+def test_monitor_cards_titulos_corretos(_, raiz):
+    from ui.app import AplicativoMonitor
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    assert app._cards["cpu"]._label_titulo.cget("text") == "CPU"
+    assert app._cards["ram"]._label_titulo.cget("text") == "RAM"
+    assert app._cards["disco"]._label_titulo.cget("text") == "Disco"
+    assert app._cards["temperatura"]._label_titulo.cget("text") == "Temperatura"
 
 
-def test_monitor_cards_titulos_corretos(monitor):
-    assert monitor._cards["cpu"]._label_titulo.cget("text") == "CPU"
-    assert monitor._cards["ram"]._label_titulo.cget("text") == "RAM"
-    assert monitor._cards["disco"]._label_titulo.cget("text") == "Disco"
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
+def test_monitor_atualizar_cards_todos_normal(_, raiz):
+    from ui.app import AplicativoMonitor
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
+    assert app._cards["cpu"].status_atual == Status.NORMAL
+    assert app._cards["ram"].status_atual == Status.NORMAL
+    assert app._cards["disco"].status_atual == Status.NORMAL
 
 
-def test_monitor_atualizar_cards_todos_normal(monitor):
-    dados = DadosHardware(cpu=10.0, ram=20.0, disco=30.0)
-    monitor._atualizar_cards(dados)
-    assert monitor._cards["cpu"].status_atual == Status.NORMAL
-    assert monitor._cards["ram"].status_atual == Status.NORMAL
-    assert monitor._cards["disco"].status_atual == Status.NORMAL
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
+def test_monitor_atualizar_cards_cpu_atencao(_, raiz):
+    from ui.app import AplicativoMonitor
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=70.0, ram=20.0, disco=30.0))
+    assert app._cards["cpu"].status_atual == Status.ATENCAO
+    assert app._cards["ram"].status_atual == Status.NORMAL
 
 
-def test_monitor_atualizar_cards_cpu_atencao(monitor):
-    dados = DadosHardware(cpu=70.0, ram=20.0, disco=30.0)
-    monitor._atualizar_cards(dados)
-    assert monitor._cards["cpu"].status_atual == Status.ATENCAO
-    assert monitor._cards["ram"].status_atual == Status.NORMAL
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
+def test_monitor_temperatura_normal_com_cpu_baixa(_, raiz):
+    from ui.app import AplicativoMonitor
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    # cpu=40 → estimar_temperatura=55°C → NORMAL
+    app._atualizar_cards(DadosHardware(cpu=40.0, ram=20.0, disco=30.0))
+    assert app._cards["temperatura"].status_atual == Status.NORMAL
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
+def test_monitor_temperatura_alerta_com_cpu_alta(_, raiz):
+    from ui.app import AplicativoMonitor
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._rastreadores["temperatura"] = MagicMock(atualizar=MagicMock(return_value=Status.ALERTA))
+    # cpu=100 → estimar_temperatura=85°C → ALERTA
+    app._atualizar_cards(DadosHardware(cpu=100.0, ram=20.0, disco=30.0))
+    assert app._cards["temperatura"].status_atual == Status.ALERTA
