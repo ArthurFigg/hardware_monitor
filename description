@@ -1,7 +1,0 @@
-Implementação inicial do monitor de hardware
-
-App desktop Python com indicadores visuais (semáforo) para CPU, RAM e Disco.
-Coleta em thread separada, notificações nativas no estado de alerta, suporte a dark/light mode.
-40 testes cobrindo todas as camadas.
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
