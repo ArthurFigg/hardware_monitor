@@ -18,3 +18,9 @@ testpaths = ["tests"]
 dev = [
     "pytest>=9.0.3",
 ]
+
+[tool.uv]
+# O projeto vive dentro do OneDrive. O modo hardlink padrão faz o venv e o cache
+# do uv compartilharem o mesmo registro de arquivo; quando o OneDrive dehidrata o
+# lado do venv, o cache é corrompido junto (os error 396). Copiar evita isso.
+link-mode = "copy"
