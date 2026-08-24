@@ -1,5 +1,5 @@
 ## Projeto
-Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, RAM e Disco em indicadores visuais simples (sistema de semáforo) para usuários não-técnicos.
+Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, RAM, Disco e Temperatura estimada em indicadores visuais simples (sistema de semáforo) para usuários não-técnicos.
 
 ## Stack
 - Python 3.14 (pythoncore-3.14-64 — instalação Windows Store, Tcl/Tk parcialmente disponível)
@@ -11,13 +11,13 @@ Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, 
 
 ## Estado atual — projeto completo e funcional
 
-Todas as 5 etapas foram implementadas. Para rodar:
+Para rodar:
 
 ```
 uv run main.py
 ```
 
-Para rodar os testes (40 testes, todos passando):
+Para rodar os testes (61 testes, todos passando):
 
 ```
 uv run pytest -v
@@ -30,25 +30,29 @@ hardware_monitor/
 ├── hardware/
 │   ├── __init__.py
 │   ├── collector.py      — DadosHardware dataclass + coletar()
-│   └── thresholds.py     — Status enum, classificar(), descricao(), RastreadorAlerta
+│   └── thresholds.py     — Status enum, classificar(), classificar_temperatura(),
+│                           estimar_temperatura(), descricao(), descricao_temperatura(),
+│                           RastreadorAlerta
 ├── ui/
 │   ├── __init__.py
 │   ├── app.py            — AplicativoMonitor(CTkFrame): orquestra coleta, cards e notificações
 │   └── components/
 │       ├── __init__.py
 │       ├── semaphore.py  — Semaforo(CTkFrame): círculo colorido por status
-│       └── cards.py      — CartaoRecurso(CTkFrame): semáforo + título + descrição
+│       └── cards.py      — CartaoRecurso(CTkFrame): semáforo + valor numérico + descrição
+│                           Parâmetros: descricao_fn (textos por recurso) e formatar_valor
+│                           (ex: "74%" para CPU/RAM/Disco, "~66°C" para Temperatura)
 ├── notifications/
 │   ├── __init__.py
 │   └── manager.py        — GerenciadorNotificacoes: dispara notificação uma vez por período de alerta
 ├── tests/
 │   ├── hardware/
 │   │   ├── test_collector.py   — 4 testes (mock psutil)
-│   │   └── test_thresholds.py  — 16 testes (limites, textos, RastreadorAlerta com mock de time)
+│   │   └── test_thresholds.py  — 36 testes (limites, textos, temperatura, RastreadorAlerta)
 │   ├── ui/
 │   │   ├── conftest.py         — fixture raiz (CTk, session-scoped)
-│   │   ├── test_app.py         — 4 testes (monitor usa fixture raiz)
-│   │   ├── test_cards.py       — 5 testes
+│   │   ├── test_app.py         — 6 testes
+│   │   ├── test_cards.py       — 9 testes
 │   │   └── test_semaphore.py   — 5 testes
 │   └── notifications/
 │       └── test_manager.py     — 5 testes (mock plyer)
@@ -62,19 +66,29 @@ hardware_monitor/
 - `AplicativoMonitor` é `CTkFrame`, não `CTk` — o root é criado em `main.py` e passado como `master`. Isso permite que os testes compartilhem um único root Tcl/Tk (Python 3.14 não suporta múltiplos roots no mesmo processo).
 - Fixture `raiz` em `conftest.py` é `scope="session"` pelo mesmo motivo — um único CTk para toda a suite.
 - Thread de coleta usa `coletar()` com `interval=1` (bloqueia 1s) + loop contínuo. A UI puxa os dados a cada 100ms via `after()`.
-- `RastreadorAlerta` em `thresholds.py` (não em `app.py`) porque é regra de negócio: confirma ALERTA só após 5s contínuos acima de 85%.
+- `RastreadorAlerta` em `thresholds.py` (não em `app.py`) porque é regra de negócio: confirma ALERTA só após 5s contínuos acima do limite.
 - `GerenciadorNotificacoes` tem estado (`_notificado`) para não repetir a notificação enquanto o recurso permanece em ALERTA.
-- `preview.py` na raiz é um script descartável de visualização — pode ser deletado.
+- Temperatura é **estimada** a partir do % de CPU (`estimar_temperatura(cpu)`): idle=35°C, carga máxima=85°C. Não usa WMI nem sensor real — leitura de sensor no Windows exige driver de kernel (admin) e não é viável sem dependência externa.
+- `CartaoRecurso` aceita `descricao_fn` e `formatar_valor` para suportar textos e formatos diferentes por recurso sem duplicar o componente.
 
 ## Thresholds (nunca alterar sem avisar)
 - Normal: CPU e RAM entre 0% e 59%
 - Atenção: CPU ou RAM entre 60% e 84%
 - Alerta: CPU ou RAM acima de 85% por mais de 5 segundos
+- Temperatura Normal: abaixo de 60°C
+- Temperatura Atenção: entre 60°C e 79°C
+- Temperatura Alerta: acima de 80°C por mais de 5 segundos
 
 ## Textos da interface (usar exatamente esses, sem alterar tom)
+CPU / RAM / Disco:
 - Normal: "Desempenho estável. O sistema está operando com folga."
 - Atenção: "Carga moderada. Vários processos estão exigindo recursos da máquina."
 - Alerta: "Sobrecarga de memória/processamento. Feche aplicativos inativos para evitar travamentos."
+
+Temperatura:
+- Normal: "Temperatura dentro do esperado. O processador está operando com segurança."
+- Atenção: "Temperatura elevada. Verifique a ventilação do computador."
+- Alerta: "Temperatura crítica. Feche aplicativos pesados e verifique o sistema de resfriamento."
 
 ## Regras fixas
 - Coleta de dados sempre em thread separada, nunca na thread principal
@@ -86,20 +100,21 @@ hardware_monitor/
 ## UI/UX
 - Estilo minimalista, sem bordas pesadas ou gráficos de linha
 - Suporte a Light Mode e Dark Mode com botão toggle
-- Foco em indicadores visuais, não em números puros
+- Valor numérico exibido em todos os cards: percentual (%) para CPU/RAM/Disco, temperatura estimada (~°C) para Temperatura
 
 ## Melhorias possíveis (ainda não implementadas)
+- Notificações com mensagem específica por recurso (ex: "CPU em sobrecarga" em vez de mensagem genérica) e disparo também no estado Atenção
 - Ícone na system tray com minimize para bandeja
 - Histórico de uso em gráfico simples (últimos N minutos)
 - Configuração de thresholds pelo usuário via arquivo `.env` ou UI
 - Suporte a múltiplos discos (atualmente monitora só o disco raiz)
-- Percentual numérico opcional nos cards (toggle de exibição)
 - Auto-inicialização com o Windows (registro ou atalho na pasta Startup)
 - Janela sempre visível (topmost) como opção
 
 ## Não fazer
 - Não misturar responsabilidades num arquivo só
 - Não criar lógica de negócio dentro de app.py
-- Não disparar notificações em estados Normal ou Atenção
+- Não disparar notificações em estados Normal ou Atenção (melhoria pendente — ver acima)
 - Não usar jargões técnicos nos textos da interface
 - Não criar segundo root CTk nos testes — usar a fixture `raiz` de conftest.py
+- Não tentar ler temperatura real via WMI — exige admin e não funciona em todos os hardwares
