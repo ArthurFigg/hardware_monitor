@@ -1,0 +1,299 @@
+APROVADOS — hardware_monitor
+Extrato acionavel do ideias.txt. So o que foi aprovado, ja agrupado em specs.
+O historico completo (recusas, motivos, ideias adiadas) fica no ideias.txt.
+Triagem dos tres grupos CONCLUIDA em 2026-08-25 (30 itens: 12 entram, 11 adiados,
+7 descartados). Historico completo e motivos no ideias.txt.
+
+Cards novos aprovados: 1 (GPU). Tela passa de 4 para 5.
+
+ESCOPO DECLARADO (2026-08-25): app para PC DE MESA, e SERA DISTRIBUIDO para outras
+pessoas. Nao roda so na maquina do autor. Isso impoe as regras de DISTRIBUICAO
+abaixo, que valem para TODAS as specs.
+
+DISTRIBUICAO — regras que atravessam as specs:
+  1. NADA de caminho da maquina do autor. Nem .venv, nem pasta do projeto.
+     Dados do app vao para %LOCALAPPDATA%. A pasta do projeto aqui esta dentro do
+     OneDrive — gravar la sincronizaria arquivo sem parar, mas o motivo principal e
+     que na maquina do usuario final essa pasta nem existe.
+  2. TODA leitura de hardware precisa degradar sozinha. Os contadores do Windows
+     foram testados numa maquina so (build 26200, bem nova) e em portugues.
+     Em Windows 10 mais antigo, em outro idioma ou em PC sem placa dedicada, a
+     leitura pode falhar. Regra: falhou, ESCONDE a linha ou o card. Nunca quebra.
+     Isso deixou de ser detalhe e virou essencial.
+  3. Card de GPU tem que se comportar em PC sem placa dedicada.
+  4. Bateria FICA DE FORA por escopo: app para PC de mesa. Ver B4 no ideias.txt.
+Uma dependencia nova no total (pystray + Pillow), so na spec 4.
+
+
+===============================================================================
+SPEC 1 — NOTIFICACOES QUE DIZEM O QUE ESTA ACONTECENDO
+Arquivos: notifications/manager.py, ui/app.py, hardware/collector.py
+===============================================================================
+
+A1. Notificacao especifica por recurso
+    Hoje a mensagem e generica. Passa a dizer qual recurso estourou:
+    "CPU em sobrecarga", "Memoria em sobrecarga".
+    DECIDIDO: NAO dispara no estado Atencao. 60-84% acontece em uso normal e viraria
+    ruido que faz o usuario desligar as notificacoes. Alerta (85% por 5s) ja e o
+    filtro certo.
+    O estado _notificado do GerenciadorNotificacoes vira um estado POR RECURSO, nao
+    um booleano unico.
+
+A2. Nomear o programa que esta consumindo
+    "Chrome esta usando 78% da CPU" em vez de so "CPU sobrecarregada".
+    Entra na notificacao e no card em Alerta.
+
+    ENQUADRAMENTO (regra de tom, nao negociavel): NOMEAR, nunca acusar. O processo
+    mais pesado costuma ser o que o usuario QUER rodando — um jogo, um editor de
+    video. Nada de "culpado" nem "feche o Chrome". Se algum dia sugerir acao, a
+    sugestao e fechar os OUTROS apps, nao o mais pesado.
+
+    Implementacao:
+      - Agrupar por nome: Chrome sao ~20 processos; sem somar, nenhum passa de 4%.
+      - Nome cru do executavel (chrome.exe). Nome amigavel ("Antivirus do Windows"
+        para MsMpEng.exe) fica para depois — e polimento.
+      - So para CPU e RAM. Disco (espaco) e Temperatura nao tem processo associado.
+      - cpu_percent() por processo exige duas leituras espacadas; a primeira sempre
+        volta 0.0.
+      - Roda na thread de coleta que ja existe, NUNCA na UI.
+
+    PESO — MEDIDO em 2026-08-25, e mudou o desenho da spec:
+      Varrer os 268 processos custa 163 ms.
+      A cada 1s isso e 16% de UM NUCLEO o tempo todo. Um monitor que come 16% de CPU
+      para avisar que a CPU esta alta e uma piada.
+      DECIDIDO: varrer SOB DEMANDA, so quando o recurso entra em Alerta — que e o
+      unico momento em que o nome do programa e usado (A1 ja decidiu que a
+      notificacao so dispara em Alerta). Custo vira 163 ms de vez em quando: zero.
+      NUNCA varrer a cada ciclo de coleta.
+
+    DUAS ARMADILHAS ENCONTRADAS NA MEDICAO:
+      - "System Idle Process" aparece com 1125% — e o processo do tempo ocioso.
+        EXCLUIR, senao o app anuncia que o processo ocioso esta consumindo tudo.
+      - Valores passam de 100%: cpu_percent por processo soma todos os nucleos.
+        Normalizar antes de exibir, ou o texto fica absurdo.
+
+
+===============================================================================
+SPEC 2 — CARD DISCO DECENTE
+Arquivos: hardware/thresholds.py, hardware/collector.py, ui/app.py
+===============================================================================
+
+A14. Limiares e textos proprios (CORRIGE DEFEITO ATUAL)
+     DEFEITO: disco usa a mesma classificar() (60/85) e o mesmo DESCRICOES de CPU e
+     RAM. Disco 87% cheio exibe hoje "Feche aplicativos inativos para evitar
+     travamentos" — fechar programa nao libera espaco em disco. Conselho inutil.
+     E 60% de disco cheio e normal demais para virar amarelo.
+
+     Vira: classificar_disco() e DESCRICOES_DISCO em thresholds.py.
+     Limiares sugeridos: Atencao 85%, Alerta 95% — ou por espaco livre absoluto
+     ("menos de 10 GB livres"), que e o que realmente quebra o Windows.
+     DECIDIR NA SPEC qual dos dois.
+     Texto sugerido: "Espaco em disco acabando. Apague arquivos que voce nao usa mais."
+     CartaoRecurso ja aceita descricao_fn — nao precisa de componente novo.
+
+A9. Ver todos os discos, nao so o raiz
+    A maquina tem DOIS SSDs: CT120BX500SSD1 (120 GB) e KINGSTON SNV3S1000G (1 TB).
+    Hoje disk_usage("/") ignora um deles. Um SSD de 120 GB enche rapido e e
+    exatamente o tipo que lota sem ninguem perceber.
+
+    DECIDIDO: o PIOR disco manda no semaforo, e o card diz qual e
+    ("Disco C: — 91% cheio"). Custo de tela: zero.
+    Descartado: um card por disco (comeria o orcamento de tela); listar todos dentro
+    do card (polui).
+    Principio: o usuario nao precisa saber que tem dois discos, precisa saber que UM
+    deles esta acabando.
+
+A5. Aviso de disco com desgaste
+    Nivel CrystalDiskInfo simplificado: saudavel / vai falhar. Atributos S.M.A.R.T.
+    detalhados exigem admin e ficam fora de proposito.
+
+    TESTADO em 2026-08-25, sessao SEM admin (IsInRole = False confirmado):
+      Get-PhysicalDisk                -> FriendlyName, MediaType, HealthStatus
+      Get-CimInstance Win32_DiskDrive -> Model, Status (OK / Pred Fail), Size
+      Os dois responderam, nenhum pediu elevacao.
+      wmic esta DESCARTADO: removido do Windows 11 recente (esta maquina e build 26200).
+
+    CUSTO BAIXO: saude de disco nao muda de segundo em segundo. Ler UMA vez na
+    inicializacao, na thread de coleta. Nao entra no ciclo de 1s.
+    DESIGN: a linha so aparece quando o disco NAO esta saudavel. Tudo bem = silencio.
+
+
+===============================================================================
+SPEC 3 — AVISO DE CALOR FREANDO O PROCESSADOR
+Arquivos: hardware/collector.py (modulo novo de leitura PDH), thresholds.py, ui/app.py
+===============================================================================
+
+A4. "Seu processador diminuiu a velocidade para nao esquentar"
+    Mostra o efeito real do calor, melhor que o °C estimado que o app ja exibe.
+
+    TESTADO em 2026-08-25 — caminho definido, tudo com stdlib (ctypes + winreg),
+    SEM dependencia nova e SEM subprocesso:
+      1. psutil.cpu_freq() NAO serve: devolve 3701 MHz fixo, parado ou sob carga.
+         Le a frequencia nominal do registro, nao o clock real.
+      2. Serve o contador PDH "% Processor Performance" — o mesmo do Gerenciador
+         de Tarefas.
+      3. IDIOMA resolvido por indice: a chave 009 do Perflib da o indice a partir do
+         nome em ingles (Processor Information = 2610, % Processor Performance = 2660);
+         PdhLookupPerfNameByIndexW traduz para o idioma da maquina.
+         Indice e universal — o codigo nao quebra em Windows ingles.
+      4. Leitura por query PDH persistente: PdhOpenQueryW + PdhAddCounterW uma vez,
+         PdhCollectQueryData por ciclo. Nada de chamar typeperf a cada leitura.
+      5. Medido nesta maquina: 105-117% em repouso, 121% sob carga.
+         Acima de 100% e turbo (saudavel). Throttling = abaixo de 100% COM carga alta.
+
+    REGRA: nunca classificar so pelo contador — ele tambem cai com o PC ocioso, e ai
+    a queda e proposital. Acusar so quando carga alta E desempenho baixo, juntos.
+    DEGRADACAO: se o contador falhar em outra maquina, ESCONDER a linha.
+    Nunca quebrar o card de Temperatura.
+    LIMITE DE TESTE: nao da para provocar superaquecimento real. Os testes cobrem a
+    regra com valores simulados (mock na fronteira), nao o evento fisico.
+
+
+===============================================================================
+SPEC 4 — ABRIR COM O WINDOWS, BANDEJA E RODAPE
+Implementar A11 PRIMEIRO; A13 depois. E A11 que da sentido ao par.
+===============================================================================
+
+A11. Abrir junto com o Windows  [primeiro]
+     Um monitor que so funciona quando o usuario lembra de abrir nao monitora nada.
+
+     EXIGENCIA DO USUARIO: tem que dar para DESATIVAR facilmente. Programa que se
+     instala na inicializacao e nao oferece saida e comportamento de coisa ruim.
+     Interruptor na propria interface (caixa de marcar no cabecalho, ao lado do
+     botao de tema). Nao gasta card nem tela nova.
+
+     TESTADO em 2026-08-25:
+       - A chave Run do HKCU e acessivel sem admin.
+       - .venv/Scripts/pythonw.exe evita a janela preta de terminal no boot — mas
+         isso vale so em desenvolvimento. NA VERSAO DISTRIBUIDA a entrada do registro
+         aponta para o .EXE da spec 6, nunca para .venv nem para caminho do projeto.
+         Implementar ja lendo o caminho do executavel em tempo de execucao.
+       - A maquina ja tem 10 entradas nessa chave (OneDrive, Steam, Notion, Epic,
+         Roblox, Spotify, Edge, Epson, AMD, BingWallpaper).
+       - CONVENCAO CONFIRMADA: todas as 10 usam variacao de silencioso — -silent,
+         --minimized, --background, --launch-to-tray. Seguir o padrao.
+
+     REGRA: subir MINIMIZADO, nunca roubar a tela no boot.
+
+B6. "Ligado ha X horas" no rodape  [junto, mesma area da tela]
+    Linha discreta ao lado do botao de tema. NAO e card — nao tem cor, nao existe
+    "uptime em alerta". Custo de vaga: zero.
+    psutil.boot_time(). Medido em 2026-08-25: 5 horas.
+
+A13. Icone na bandeja, com minimizar para la  [depois]
+     Fechar a janela esconde para a bandeja em vez de encerrar; clique traz de volta.
+     Sem isso, todo boot deixa mais uma janela na barra de tarefas; para tirar da
+     frente o usuario fecha, e ao fechar o monitoramento morre.
+
+     BONUS: colorir o icone da bandeja conforme o PIOR status. O semaforo passa a
+     estar sempre visivel sem ocupar tela nenhuma.
+
+     CUSTO REAL — unico item desta leva com custo de verdade:
+       - Dependencia nova: pystray + Pillow, com teto de versao (regra do CLAUDE.md).
+       - Thread propria com laco proprio conversando com a UI.
+         ARMADILHA JA DOCUMENTADA NO CLAUDE.md: chamada vinda de outra thread precisa
+         passar por widget.after(0, callback), senao trava ou corrompe a UI em
+         silencio.
+       - Icone de bandeja e chato de testar: os testes cobrem a logica, nao o icone.
+
+
+===============================================================================
+SPEC 5 — CARD DE GPU  (grupo B)
+Arquivos: modulo de leitura PDH (compartilhado com a spec 3), ui/app.py
+===============================================================================
+
+B1. Uso real da placa de video
+    Mesmo numero que o Gerenciador de Tarefas mostra. Medicao, nao estimativa.
+    Reaproveita o mecanismo PDH da spec 3 — fazer as duas na ordem 3 depois 5.
+
+    TESTADO em 2026-08-25:
+      - psutil nao le GPU. Nenhuma funcao.
+      - \GPU Engine(*)\Utilization Percentage funciona. Repouso: 0.3-0.5% somado.
+      - PEGADINHA 1: esse contador NAO e traduzido — fica em ingles mesmo no Windows
+        portugues, e a busca por indice devolve vazio (indices 5802/5806 existem no
+        009 mas sem nome local). Tentar o indice e cair para o nome em ingles.
+      - PEGADINHA 2: 312 "motores" listados (3D, Copy, VideoDecode, por processo).
+        Somar os certos, nao exibir todos.
+      - PEGADINHA 3: PdhGetFormattedCounterArrayW devolve codigo NEGATIVO no ctypes.
+        Comparar com (rc & 0xFFFFFFFF), senao PDH_MORE_DATA nunca casa.
+
+    FORA: temperatura de GPU exige SDK do fabricante.
+    RISCO ACEITO: em PC sem placa dedicada o numero fica sempre baixo e o card vira
+    enfeite.
+
+
+===============================================================================
+SPEC 6 — EMPACOTAR EM .EXE  (ultima da fila)
+===============================================================================
+
+Sem isso ninguem alem do autor usa o app: hoje ele exige Python, uv e a pasta do
+projeto. Nao e mudanca pequena.
+
+  - CustomTkinter QUEBRA no PyInstaller se os arquivos de tema nao forem incluidos
+    a mao (--add-data com a pasta do pacote). Problema conhecido, resolver na spec.
+  - Define o caminho final do executavel, do qual o A11 (abrir com o Windows)
+    depende para escrever a entrada do registro.
+  - Confirmar que os dados vao para %LOCALAPPDATA% e nao para a pasta do .exe.
+  - Rodar o .exe em maquina sem Python instalado antes de dar por pronta.
+
+
+===============================================================================
+PROJETO SEGUINTE — HISTORICO  (depois das 6 specs; muda a arquitetura)
+===============================================================================
+
+C1. Guardar o historico
+    Hoje o app nao grava nada. Passa a gravar. SQLite ja vem com o Python: zero
+    dependencia nova. Destrava C3 e, se um dia voltarem, A8/B5.
+
+    NAO PESA — MEDIDO em 2026-08-25:
+      90 dias = 129.600 linhas = 5.1 MB. Gravar uma linha: 0.001 ms.
+      Consultar pico e media do dia: 0.24 ms.
+
+    QUATRO DECISOES FIXADAS:
+      1. ONDE: %LOCALAPPDATA%. Nunca na pasta do app (regra de distribuicao).
+      2. FREQUENCIA: media por MINUTO. 1.440 linhas/dia, nao 86.400.
+      3. RETENCAO: 90 dias, apaga o mais antigo.
+      4. BANCO: SQLite (stdlib).
+
+    A DOCUMENTAR EM LUGAR VISIVEL: grava quais programas estavam abertos no pico.
+    Num app distribuido isso e gravar no computador dos outros o que eles usam e
+    quando. Continua local, nada e enviado — mas precisa estar escrito.
+
+C3. Resumo das ultimas N horas de uso  [depende de C1 e de A13]
+    Notificacao CURTA ("Resumo das ultimas 10 horas") -> clique -> abre a SEGUNDA
+    TELA com o detalhe. Janela de USO, nao de calendario: quem fica dois dias sem
+    ligar o PC nao perde o resumo. N ~10, ajustavel.
+
+    CONTEUDO: quantas vezes ficou pesado e a que horas, media do periodo, programa
+    que mais consumiu, quanto de disco foi ocupado no periodo e quanto resta
+    (fato, NUNCA previsao de quando enche).
+    SO DISPARA se houve pelo menos um alerta. Dia calmo = silencio.
+
+    TESTADO: plyer NAO trata clique (nenhum callback em balloontip.py). A notificacao
+    passa a sair pelo icone da bandeja (A13), que detecta o clique. O app deve
+    abandonar o plyer e usar Shell_NotifyIcon proprio — uma dependencia a menos.
+
+    A SEGUNDA TELA E UMA SO: resumo de uso + diagnostico da maquina (programas que
+    abrem com o Windows e como desliga-los, quantos programas abertos, modelo e
+    saude dos discos). Nao deixar virar HWiNFO: poucas linhas, sem jargao, cada uma
+    com o que fazer a respeito.
+    A DEFINIR: contar tempo de PC ligado (preferido) ou de app aberto.
+
+
+===============================================================================
+FORA DESTA LEVA (detalhes e motivos no ideias.txt)
+===============================================================================
+
+Adiados:  A3  card Disco medir atividade — TESTADO, nao da no Windows (psutil deixa
+              read_time/write_time zerados). So volta depois de A8.
+          A7  modo silencioso em tela cheia — plyer nao rouba foco (fonte lido) e o
+              Windows 11 ja tem regra propria. Volta se as notificacoes ficarem
+              frequentes.
+          A8  baseline por maquina — normaliza o problema que deveria detectar.
+              Se voltar, so como complemento do limite fixo.
+          A10 limites por .env — o publico-alvo nao edita .env.
+
+Descartados: B4  card de bateria — app se declara para PC DE MESA.
+             A6  botao de acao no card (fechar o processo mais pesado e propor fechar
+                 justamente o que o usuario foi usar).
+             A12 janela sempre por cima (desnecessaria; C6 e a versao boa da ideia).

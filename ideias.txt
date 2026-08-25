@@ -1,0 +1,588 @@
+IDEIAS — hardware_monitor
+Organizado em 3 grupos pelo custo de TELA, nao pela origem da ideia.
+
+ESCOPO DECLARADO (decidido em 2026-08-25): app para PC DE MESA, e sera DISTRIBUIDO
+para outras pessoas — nao roda so na maquina do autor. Consequencias em todas as
+specs; ver "DISTRIBUICAO" no aprovados.txt.
+
+TRIAGEM CONCLUIDA EM 2026-08-25 — os tres grupos, 30 itens.
+  ENTRAM (12):    A1 A2 A4 A5 A9 A11 A13 A14 | B1 B6 | C1 C3
+  PROXIMA (11):   A3 A7 A8 A10 | B2 B3 B5 B7 B8 | C5 C6
+  DESCARTADAS (7): A6 A12 | B4 | C2 C4(como previsao) C7 | C8 unificada com C3
+  Item novo criado durante a triagem: SPEC 6 (empacotar em .exe).
+
+CRITERIO QUE MAIS CORTOU, e que vale para ideia futura: se a informacao NAO E
+SEMAFORO — se nao da para pintar de verde, amarelo ou vermelho com um limite que
+signifique algo — ela nao vira card. Ou vira linha discreta, ou vai para a segunda
+tela, ou nao entra. Cortou B2 B3 B5 B7 B8 e C2.
+SEGUNDO CRITERIO: nao devolver ao usuario uma decisao que o app deveria tomar por
+ele. Cortou C2 (grafico), C7 (configurar limites) e A10.
+Nenhuma decidida. Ultima atualizacao: 2026-08-25.
+
+Viabilidade: [OK] psutil/stdlib sem admin | [CHECAR] testar antes de virar spec |
+             [CUSTO] viavel mas exige parsing ou dependencia nova
+
+Hoje a tela principal tem 4 cards: CPU, RAM, Disco, Temperatura.
+
+APROVADAS PARA A PROXIMA VERSAO (implementar juntas, mesma spec — mexem nos mesmos
+arquivos: thresholds.py, notifications/manager.py, ui/app.py):
+  A1  notificacao especifica por recurso
+  A2  processo culpado na notificacao e no card
+  A14 card Disco com limiares e textos proprios
+  A5  saude do disco (aviso so quando nao esta saudavel)
+  A9  multiplos discos — o pior manda no semaforo
+
+Aprovadas tambem, cada uma em spec separada:
+  A4  aviso de reducao de velocidade por calor, no card Temperatura
+  A11 abrir junto com o Windows, com interruptor para desligar
+  A13 icone na bandeja (implementar DEPOIS do A11) — traz dependencia nova
+
+
+===============================================================================
+GRUPO A — MELHORIA DO QUE JA EXISTE
+Nao cria card nem tela. Mexe em card existente, em notificacao ou em regra.
+===============================================================================
+
+A1. Notificacao especifica por recurso  [OK]  >>> ENTRA (2026-08-25)
+    "CPU em sobrecarga" em vez de mensagem generica.
+    Decidido: NAO dispara em Atencao. 60-84% acontece em uso normal e viraria ruido
+    que faz o usuario desligar as notificacoes. Alerta (85% por 5s) ja e o filtro certo.
+
+A2. Identificar o processo culpado  [OK]  >>> ENTRA (2026-08-25)
+    "Chrome esta usando 78% da CPU" em vez de so "CPU sobrecarregada".
+    Entra na notificacao e no card em Alerta. Complementa A1.
+    Decidido: agrupar por nome (Chrome sao ~20 processos; sem somar, ninguem passa de 4%).
+    Decidido: nome cru do executavel (chrome.exe). Nome amigavel ("Antivirus do
+    Windows" para MsMpEng.exe) fica para depois — e polimento.
+    So para CPU e RAM. Disco (espaco) e Temperatura nao tem processo culpado.
+    ENQUADRAMENTO (decidido em 2026-08-25, junto com a recusa do A6): NOMEAR quem
+    esta consumindo, nunca acusar. O processo mais pesado costuma ser o que o usuario
+    quer rodando (jogo, editor de video). "Chrome esta usando 78% da CPU" — nao
+    "Chrome e o culpado" nem "feche o Chrome". Quando fizer sentido sugerir acao, a
+    sugestao e fechar os OUTROS apps, nao o mais pesado.
+    Atencao: cpu_percent() por processo exige duas leituras espacadas; a primeira
+    sempre volta 0.0. Roda na thread de coleta, nunca na UI (~150 processos).
+
+A3. Card Disco passa a medir atividade, nao espaco  [BLOQUEADA]  >>> PROXIMA
+    Ideia era trocar % de espaco ocupado por disk_io_counters() (a coluna
+    "Disco 100%" do Gerenciador de Tarefas).
+    TESTADO em 2026-08-25 nesta maquina: nao da. psutil no Windows deixa read_time e
+    write_time zerados (sao Linux/FreeBSD). Sem eles nao se calcula "% ocupado".
+    Sobra throughput (MB/s), que nao vira semaforo: 80 MB/s satura um HD mecanico e e
+    ocioso num NVMe. Sem saber o tipo do disco, qualquer limiar fixo e chute.
+    So volta a fazer sentido depois de A8 (baseline por maquina).
+    Substituida agora por A14, que conserta o defeito real do card.
+    Alternativa descartada junto: manter os dois e criar card novo (B8).
+
+A4. Reducao de velocidade por calor (throttling), no card Temperatura  [OK]  >>> ENTRA (2026-08-25)
+    "Seu processador diminuiu a velocidade para nao esquentar."
+    Mostra o efeito real do calor, melhor que o °C estimado.
+
+    TESTADO em 2026-08-25 — caminho definido, tudo com stdlib (ctypes + winreg),
+    sem dependencia nova e sem subprocesso:
+      1. psutil.cpu_freq() NAO serve: devolve 3701 MHz fixo, parado ou sob carga.
+         Le a frequencia nominal do registro, nao o clock real.
+      2. Serve o contador PDH do Windows "% Processor Performance" (o mesmo que o
+         Gerenciador de Tarefas usa).
+      3. Idioma resolvido por indice: a chave 009 do Perflib da o indice a partir do
+         nome em ingles (Processor Information = 2610, % Processor Performance = 2660);
+         PdhLookupPerfNameByIndexW traduz para o idioma da maquina. Indice e universal.
+      4. Leitura por query PDH persistente (PdhOpenQueryW + PdhAddCounterW uma vez,
+         PdhCollectQueryData por ciclo). Nada de chamar typeperf a cada leitura.
+      5. Medido nesta maquina: 105-117% em repouso, 121% sob carga. Acima de 100% e
+         turbo (saudavel). Throttling = abaixo de 100% COM carga alta.
+
+    REGRA: nunca classificar so pelo contador — ele tambem cai com o PC ocioso, e ai
+    a queda e proposital. Acusar so quando carga alta E desempenho baixo, juntos.
+    DEGRADACAO: se o contador falhar em outra maquina, esconder a linha. Nunca quebrar
+    o card de Temperatura.
+    LIMITE DE TESTE: nao da para provocar superaquecimento real. Testes cobrem a regra
+    com valores simulados (mock na fronteira), nao o evento fisico.
+    ESCOPO: spec propria — mexe no collector.py e traz integracao nova com o Windows.
+
+A5. Saude do disco, no card Disco  [OK]  >>> ENTRA (2026-08-25)
+    Avisar que o disco esta dando sinais de desgaste antes de ele morrer.
+    Nivel CrystalDiskInfo simplificado: saudavel / vai falhar. Atributos S.M.A.R.T.
+    detalhados exigem admin e ficam fora de proposito.
+
+    TESTADO em 2026-08-25, sessao SEM admin (confirmado IsInRole = False):
+      Get-PhysicalDisk        -> FriendlyName, MediaType, HealthStatus, OperationalStatus
+      Get-CimInstance Win32_DiskDrive -> Model, Status (OK / Pred Fail), Size
+      Os dois responderam. Nenhum pediu elevacao.
+      wmic esta descartado: removido do Windows 11 recente (esta maquina e build 26200).
+
+    CUSTO BAIXO: saude de disco nao muda de segundo em segundo. Ler uma vez na
+    inicializacao (subprocesso PowerShell na thread de coleta, nunca na UI).
+    Nao entra no ciclo de 1s.
+
+    DESIGN: a linha so aparece quando o disco NAO esta saudavel. Tudo bem = silencio.
+    Zero espaco gasto no dia a dia; o aviso surge no dia que importa.
+    ESCOPO: mesma spec do A14 — mesmo card, mesmo arquivo.
+
+A6. Botao de acao no card em Alerta  >>> DESCARTADA (2026-08-25)
+    Era: botao que abre o Gerenciador de Tarefas, ou fecha o processo do A2.
+
+    RECUSADA PELO USUARIO, com o argumento que decide: o processo mais pesado
+    normalmente e o que o usuario QUER rodando. Num jogo pesado, o topo da lista e o
+    jogo. Oferecer "fechar" ali e propor fechar justamente o que ele foi usar.
+    O que ajuda nesse cenario e fechar os OUTROS apps, nao o mais pesado.
+
+    Encerrar processo pelo app fica fora do projeto inteiro, nao so desta versao:
+    o publico e quem menos consegue julgar se aquele processo pode morrer, e metade
+    do topo da lista costuma ser processo do Windows.
+    Botao de "liberar memoria RAM": lorota, nao funciona. Se a ideia voltar, recusar.
+
+    CONSEQUENCIA NO A2: ver a nota de enquadramento la.
+
+A7. Modo silencioso automatico em tela cheia  >>> PROXIMA (2026-08-25)
+    Era: pausar notificacao durante jogo, filme ou apresentacao.
+
+    MOTIVO DE ADIAR — o problema ja esta coberto duas vezes, nenhuma delas por
+    codigo nosso:
+      1. plyer nao rouba foco. Fonte lido em 2026-08-25
+         (plyer/platforms/win/libs/balloontip.py): cria janela com WS_OVERLAPPED e
+         NUNCA chama ShowWindow — o proprio comentario do fonte diz que fica oculta.
+         Notifica por Shell_NotifyIconW (canal da bandeja). O medo de "cair para a
+         area de trabalho no meio do jogo" nao acontece por esse caminho.
+      2. Windows 11 tem regra automatica de Nao Perturbe para app em tela cheia,
+         normalmente ligada. NAO VERIFICADO nesta maquina: no Win11 a configuracao
+         vive no CloudStore, formato fechado, nao da para ler pelo registro.
+         Conferir em Configuracoes > Sistema > Notificacoes > Ativar nao perturbe
+         automaticamente.
+
+    E a frequencia e baixa: a notificacao dispara UMA vez por episodio de alerta
+    (GerenciadorNotificacoes tem estado _notificado), nao fica repetindo. Numa sessao
+    de 3h de jogo, aparece uma vez.
+    Sobrava o argumento do conteudo errado ("feche aplicativos" quando o usuario
+    mandou a maquina trabalhar de proposito) — mas A2 ja ameniza, nomeando o programa.
+
+    VOLTA A VALER se as notificacoes ficarem mais frequentes.
+
+A8. Baseline em vez de threshold fixo  [depende de C1]  >>> PROXIMA (2026-08-25)
+    Aprender o que e normal NESTA maquina e alertar no desvio, em vez de 85% cravado.
+    Unica ideia que mexe numa regra marcada como "nunca alterar sem avisar" no
+    CLAUDE.md.
+
+    A FAVOR: 85% de CPU num PC fraco e terca-feira a tarde; num PC forte e
+    acontecimento. Limite fixo trata os dois igual.
+
+    FALHA QUE PESOU MAIS: um PC que vive em 90% aprende que 90% e normal e para de
+    avisar. O aprendizado normaliza exatamente o problema que deveria detectar —
+    quem mais precisa do alerta e quem deixaria de receber.
+    Secundario: o semaforo passaria a significar coisas diferentes em semanas
+    diferentes, sem o usuario entender por que.
+
+    SE VOLTAR: so como COMPLEMENTO do limite fixo, nunca como substituto. O limite
+    fixo continua sendo o piso.
+    Bloqueada tambem por C1 (historico), que ainda nao existe.
+
+A9. Suporte a multiplos discos  [OK]  >>> ENTRA (2026-08-25)
+    Hoje monitora so o disco raiz (disk_usage("/")).
+    DEIXOU DE SER HIPOTESE: a maquina do usuario tem DOIS SSDs — CT120BX500SSD1
+    (120 GB) e KINGSTON SNV3S1000G (1 TB). Hoje o app ignora um deles. Um SSD de
+    120 GB enche rapido e e exatamente o tipo que lota sem ninguem perceber.
+    Descoberto no teste do A5.
+
+    DECIDIDO: o PIOR disco manda no semaforo, e o card diz qual e
+    ("Disco C: — 91% cheio"). Custo de tela: zero.
+    Alternativas descartadas: um card por disco (viraria grupo B, come o orcamento
+    de tela); listar todos dentro do card (nao custa card, mas polui).
+    Principio: o usuario nao precisa saber que tem dois discos, precisa saber que
+    UM deles esta acabando.
+    ESCOPO: mesma spec do A14 e A5 — mesmo card, mesmo arquivo.
+
+A10. Thresholds configuraveis por arquivo .env  >>> PROXIMA (2026-08-25)
+     MOTIVO: o publico-alvo nao edita .env. Nao sabe o que e, e se soubesse nao
+     saberia que numero por. Na pratica o recurso serviria so ao desenvolvedor —
+     e para isso basta uma variavel de ambiente pontual, sem dependencia nova.
+     Os limites foram escolhidos de proposito e estao marcados no CLAUDE.md como
+     "nunca alterar sem avisar". Abrir para configuracao enfraquece isso em troca de
+     um recurso que ninguem do publico usa.
+     SE VOLTAR: preferir configuracao pela TELA (C7), onde a pessoa ve o que muda.
+     Nao por arquivo.
+
+A11. Auto-inicializacao com o Windows  [OK]  >>> ENTRA (2026-08-25)
+     Um monitor que so funciona quando o usuario lembra de abrir nao monitora nada.
+     E o recurso que faz o app existir no dia a dia.
+
+     EXIGENCIA DO USUARIO: tem que dar para DESATIVAR facilmente. Programa que se
+     instala na inicializacao e nao oferece saida e comportamento de coisa ruim.
+     Interruptor na propria interface (caixa de marcar no cabecalho, ao lado do
+     botao de tema). Nao gasta card nem tela nova.
+
+     TESTADO em 2026-08-25:
+       - HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run: acessivel sem admin.
+       - .venv\Scripts\pythonw.exe existe — usar ELE, nao python.exe, senao pisca
+         janela preta de terminal a cada boot.
+       - A maquina ja tem 10 entradas nessa chave (OneDrive, Steam, Notion, Epic,
+         Roblox, Spotify, Edge, impressora Epson, AMD, BingWallpaper).
+       - CONVENCAO CONFIRMADA: todas as 10 usam variacao de silencioso — -silent,
+         --minimized, --background, --launch-to-tray. Seguir o padrao.
+
+     REGRA: subir MINIMIZADO, nunca roubar a tela no boot.
+     IRONIA REGISTRADA: o B3 avisa "voce tem programas demais abrindo com o Windows"
+     e o proprio app entraria na lista. Aceitavel — ele e leve e o proposito dele e
+     estar rodando — mas reforca a exigencia de ser bem-comportado.
+     NOTA: sem A13 (bandeja), "minimizado" quer dizer na barra de tarefas. Aceitavel.
+     Com A13 fica melhor.
+     ESCOPO: spec propria.
+
+A12. Janela sempre visivel (topmost)  >>> DESCARTADA (2026-08-25)
+     Era: attributes("-topmost", True) — uma linha, custo irrelevante.
+     RECUSADA PELO USUARIO: desnecessaria.
+     Contra ja levantado: janela inteira de 4 cards por cima de tudo atrapalha, e o
+     publico nao-tecnico costuma nao saber desfazer — vira "esse programa nao sai
+     da frente".
+     C6 (modo mini, so semaforos) e essa mesma ideia numa versao melhor: janelinha
+     pequena por cima e util, janela inteira por cima e estorvo. Se C6 existir um
+     dia, A12 continua desnecessaria.
+
+A13. Icone na bandeja, com minimizar para la  [CUSTO]  >>> ENTRA (2026-08-25)
+     Fechar a janela esconde para a bandeja em vez de encerrar; clique traz de volta.
+
+     FICOU NECESSARIA POR CAUSA DO A11: sem bandeja, todo boot deixa mais uma janela
+     na barra de tarefas. Para tirar da frente o usuario fecha — e ao fechar, o
+     monitoramento morre. Com bandeja o app fica rodando quieto.
+     Mesmo padrao de Steam, Spotify e Roblox, que aparecem na lista de inicializacao
+     desta maquina justamente com --launch-to-tray / --minimized.
+
+     BONUS: colorir o proprio icone da bandeja conforme o PIOR status. O semaforo
+     passa a estar sempre visivel sem ocupar tela nenhuma — entrega de graca o que
+     A12 (descartada) e C6 tentavam.
+
+     CUSTO REAL — unico item do grupo A que tem custo de verdade:
+       - Dependencia nova: pystray + Pillow. Com teto de versao, conforme CLAUDE.md.
+       - Thread propria com laco proprio conversando com a UI. ARMADILHA JA DOCUMENTADA
+         no CLAUDE.md: chamada vinda de outra thread precisa passar por
+         widget.after(0, callback), senao trava ou corrompe a UI em silencio.
+       - Icone de bandeja e chato de testar: testes cobrem a logica, nao o icone.
+
+     ESCOPO: spec propria, implementada DEPOIS do A11 — e A11 que da sentido ao par.
+
+A14. Card Disco com limiares e textos proprios  [OK]  >>> ENTRA (2026-08-25)
+     DEFEITO ATUAL: disco usa a mesma classificar() (60/85) e o mesmo DESCRICOES de
+     CPU e RAM. Disco 87% cheio exibe "Feche aplicativos inativos para evitar
+     travamentos" — fechar programa nao libera espaco em disco. Conselho inutil.
+     E 60% de disco cheio e normal demais para virar amarelo.
+     Vira: classificar_disco() e DESCRICOES_DISCO em thresholds.py.
+     Limiares sugeridos: Atencao 85%, Alerta 95% — ou por espaco livre absoluto
+     ("menos de 10 GB livres"), que e o que realmente quebra o Windows. Decidir na spec.
+     Texto sugerido: "Espaco em disco acabando. Apague arquivos que voce nao usa mais."
+     CartaoRecurso ja aceita descricao_fn — nao precisa de componente novo.
+
+
+===============================================================================
+GRUPO B — ADICAO QUE OCUPA A TELA PRINCIPAL
+Cada item aqui e um card novo. Orcamento apertado: hoje sao 4.
+===============================================================================
+
+B1. Card de GPU  [OK]  >>> ENTRA (2026-08-25)  — 1o card novo
+    A ideia era temperatura de GPU estimada. Virou coisa melhor: USO REAL da placa,
+    o mesmo numero do Gerenciador de Tarefas. Medicao, nao estimativa.
+
+    TESTADO em 2026-08-25:
+      - psutil nao le GPU (nenhuma funcao). Confirmado.
+      - Contador PDH \GPU Engine(*)\Utilization Percentage funciona, mesmo mecanismo
+        do A4. Em repouso: 0.3-0.5% somado.
+      - PEGADINHA 1: esse contador NAO e traduzido. Ao contrario do de CPU, fica em
+        ingles no Windows portugues. A busca por indice devolve string vazia para ele
+        (indices 5802 e 5806 existem no 009, mas nao ha nome local).
+        REGRA: tentar o indice, e cair para o nome em ingles quando vier vazio.
+      - PEGADINHA 2: sao 312 "motores" de GPU (3D, Copy, VideoDecode, por processo).
+        Somar os certos, nao exibir tudo.
+      - PEGADINHA 3: PdhGetFormattedCounterArrayW devolve o codigo como NEGATIVO no
+        ctypes. Comparar com (rc & 0xFFFFFFFF), senao PDH_MORE_DATA nunca casa.
+
+    TEMPERATURA de GPU continua FORA: exige SDK do fabricante. Uso real vale mais que
+    temperatura chutada.
+    A FAVOR: e o recurso mais visivel que falta. Jogo, video e edicao passam pela
+    placa, e hoje o app e cego para isso — se o PC engasga num jogo, nenhum dos 4
+    cards atuais explica.
+    CONTRA: custa um card. Em PC sem placa dedicada o numero fica sempre baixo e o
+    card vira enfeite.
+
+B2. Memoria em disco (paginacao / swap)  >>> PROXIMA (2026-08-25)
+    psutil.swap_memory(). "Seu computador esta sem memoria e usando o disco como
+    reserva — por isso esta lento." Explica a lentidao melhor que "RAM em 91%",
+    porque o card de RAM mostra 90% e nao explica o engasgo. E o memory pressure
+    do iStat.
+
+    MEDIDO em 2026-08-25 nesta maquina: 12.3 GB reservados, 0.1 GB em uso (1%).
+    Ha RAM sobrando — hoje isso nunca acenderia.
+    MOTIVO DE ADIAR: card que fica verde o ano inteiro e so serve no dia ruim.
+    Ocupa espaco permanente para evento raro.
+
+    QUANDO VOLTAR, VOLTAR ASSIM: nao como card proprio, e sim como LINHA no card de
+    RAM, aparecendo so quando a paginacao disparar. Mesmo padrao do A5 (saude do
+    disco): silencio quando esta tudo bem. Assim entrega a informacao sem gastar vaga
+    de tela.
+
+B3. Programas que abrem junto com o Windows  >>> PROXIMA como card / MIGRA PARA O GRUPO C
+    (2026-08-25)
+    Equivalente a aba "Inicializar" do Gerenciador de Tarefas.
+    LEVANTADO nesta maquina: 10 entradas so na chave Run do HKCU — OneDrive, Steam,
+    Notion, Epic, Roblox, Spotify, Edge, impressora Epson, AMD, BingWallpaper.
+    E so uma das tres fontes (falta HKLM e a pasta Startup): o numero real e maior.
+
+    VEREDITO DO USUARIO: a informacao e util — inclusive saber QUANTOS abrem e COMO
+    fechar — mas nao serve como card.
+
+    POR QUE NAO E CARD: nao e semaforo. Os outros 4 cards mudam de cor o tempo todo;
+    esse e um numero parado que muda uma vez por mes. Fica estatico no meio de
+    indicadores vivos. E a regua e discutivel: 10 programas e muito para quem so usa
+    navegador e normal para quem tem Steam e Epic.
+
+    FORMATO CERTO: item de uma TELA DE DIAGNOSTICO (grupo C), que alem de listar
+    ENSINE A DESLIGAR — exigencia do usuario. So contar nao resolve nada, porque
+    desligar continua sendo no Gerenciador de Tarefas (botao de acao ja foi
+    descartado no A6).
+
+B4. Bateria  >>> DESCARTADA (2026-08-25)
+    sensors_battery() da carga, tempo restante e tomada, sem admin.
+    Saude (capacidade atual vs de fabrica) exige parsear o HTML do
+    powercfg /batteryreport.
+
+    MOTIVO DE ADIAR — TESTADO em 2026-08-25: psutil.sensors_battery() devolve None
+    nesta maquina. E DESKTOP, nao tem bateria.
+    Programar e testar as cegas um recurso que nunca roda na propria maquina, e que
+    ainda precisa sumir sozinho em desktop para nao deixar card morto na tela, e
+    trabalho sem retorno agora.
+    DECISAO FINAL (2026-08-25), depois de saber que o app sera distribuido:
+    o app se declara APP PARA PC DE MESA. Para quem nao tem notebook, um card de
+    bateria e ocupacao inutil de tela. Talvez no futuro, se houver versao para
+    notebook. Por ora, fora.
+    (O motivo antigo — "o dono da maquina programaria as cegas" — deixou de valer
+    quando o publico passou a incluir notebooks. O que decidiu foi o escopo
+    declarado, nao a maquina do autor.)
+
+B5. Uso de rede (up/down)  >>> PROXIMA (2026-08-25)
+    Quanto esta baixando e enviando por segundo. psutil.net_io_counters() funciona
+    (testado em 2026-08-25; deu 0.00 MB/s so porque nao havia trafego no momento).
+
+    A FAVOR: e o quinto recurso que todo monitor tem, e explica um caso que o app
+    hoje nao cobre — internet lenta com maquina tranquila, algo baixando no fundo.
+
+    MOTIVO DE ADIAR — mesmo problema que matou o A3: MB/s nao vira semaforo.
+    5 MB/s satura uma internet de 50 mega e e nada numa de 500. Sem saber a
+    velocidade contratada nao existe limite que signifique algo, e sem limite nao ha
+    verde, amarelo nem vermelho.
+    Contorno possivel (mostrar so o numero, sem cor) foi recusado pelo mesmo criterio
+    do B3: card sem semaforo no meio de uma tela de semaforos.
+    VOLTA se existir o baseline (A8), que daria sentido a "rapido" e "lento" NESTA
+    conexao.
+
+B6. Uptime do sistema  [OK]  >>> ENTRA (2026-08-25) — mas NAO como card
+    "Ligado ha X horas." Informacao simples, sem jargao.
+    MEDIDO em 2026-08-25: 5 horas (psutil.boot_time()).
+
+    VEREDITO DO USUARIO: util, mas nao para card — "talvez no canto da tela".
+    FORMATO: linha discreta no rodape, ao lado do botao de tema. Custo de vaga: ZERO.
+    POR QUE NAO E CARD: nao tem cor. Nao existe "uptime em alerta" — nada a
+    classificar em verde, amarelo ou vermelho.
+    ESCOPO: junto da spec 4, que ja mexe no cabecalho/rodape para por o interruptor
+    do A11.
+
+B7. Quantos programas abertos  >>> PROXIMA (2026-08-25)
+    len(psutil.pids()) + janelas visiveis. Complementa A2.
+    MEDIDO em 2026-08-25: 273 processos.
+    MOTIVO DE ADIAR: numero que assusta sem informar. A maioria e processo do
+    Windows e nao ha nada a fazer a respeito. Mesmo caso do B3 — consulta, nao
+    semaforo.
+    SE VOLTAR: no C8 (tela de diagnostico), nao como card.
+
+B8. Atividade de disco como card separado  >>> PROXIMA (2026-08-25)
+    Variante de A3 que mantem o card de espaco e cria um novo.
+    Morreu junto com o A3, sem decisao propria: o dado nao existe para o Python no
+    Windows (psutil deixa read_time/write_time zerados). Ver A3.
+
+
+===============================================================================
+GRUPO C — EXIGE OUTRA TELA OU ESTRUTURA NOVA
+Persistencia, segunda janela ou tela de configuracao. Projeto a parte.
+===============================================================================
+
+C1. Historico de uso persistente  >>> ENTRA (2026-08-25) — como PROJETO SEGUINTE,
+    depois das 6 specs. E a unica aprovada que muda a arquitetura do app.
+    Registro continuo desde a inicializacao. Pico do dia + apps abertos no momento,
+    media do dia, pico e media da semana.
+    Destrava C2, C3, C4, C5 e A8.
+
+    NAO PESA — MEDIDO em 2026-08-25:
+      90 dias guardados = 129.600 linhas = 5.1 MB de arquivo.
+      Gravar uma linha: 0.001 ms. Consultar pico e media do dia: 0.24 ms.
+      SQLite ja vem com o Python: zero dependencia nova.
+
+    QUATRO DECISOES FIXADAS:
+      1. ONDE: %LOCALAPPDATA%, nunca na pasta do app. Regra de distribuicao.
+      2. FREQUENCIA: media por MINUTO, nao por segundo. 1.440 linhas/dia em vez de
+         86.400, e responde tudo que se quer saber.
+      3. RETENCAO: 90 dias, apaga o mais antigo.
+      4. BANCO: SQLite (stdlib).
+
+    ESCOLHA CONSCIENTE A DOCUMENTAR: a ideia inclui gravar QUAIS PROGRAMAS estavam
+    abertos no pico. Num app distribuido, isso e gravar no computador dos outros o
+    que eles usam e quando. Continua local, nada e enviado a lugar nenhum — mas e
+    diferente de guardar so percentuais, e precisa estar escrito em lugar visivel.
+
+C2. Historico em grafico simples (ultimos N minutos)  >>> DESCARTADA (2026-08-25)
+    Era: desenho da CPU/RAM ao longo dos ultimos minutos, tipo a aba "Desempenho"
+    do Gerenciador de Tarefas.
+
+    O QUE ACRESCENTARIA: o app hoje so mostra o agora. O grafico mostraria o
+    movimento — se 74% vem subindo de 30% ou aliviando de 95%.
+
+    MOTIVO DO CORTE: o grafico responde "como estava antes", e o publico do app nao
+    tem o que fazer com essa resposta. Quem le tendencia em grafico e tira conclusao
+    ja entende do assunto — e essa pessoa usa o Gerenciador de Tarefas, nao este app.
+    O semaforo funciona porque JA DECIDIU pelo usuario: verde e tranquilo, vermelho e
+    agir. O grafico devolve a decisao para quem nao sabe toma-la.
+
+    RESOLVE A CONTRADICAO DO CLAUDE.md: a secao UI/UX proibe "graficos de linha", mas
+    a lista de melhorias possiveis pedia este item. A regra fica; o item sai.
+    CORRIGIR O CLAUDE.md: remover "Historico de uso em grafico simples" da lista de
+    melhorias possiveis.
+
+    O VALOR REAL FICA COM O C3 (resumo do dia): "seu PC ficou pesado 3 vezes hoje,
+    por volta das 15h" e mais util que uma linha serrilhada, e nao precisa de grafico.
+
+C3. Resumo das ultimas N horas de uso  >>> ENTRA (2026-08-25)
+    [depende de C1 (dados) e de A13 (clique na notificacao)]
+
+    FORMATO DEFINIDO PELO USUARIO — melhor que a ideia original:
+      Notificacao CURTA: "Resumo das ultimas 10 horas".
+      Clique na notificacao -> abre uma TELA com o resumo detalhado.
+      A janela e de USO, nao de calendario: "ultimas N horas de uso" em vez de "hoje".
+      Quem fica dois dias sem ligar o PC nao perde o resumo. N ~10, ajustavel.
+
+    CONTEUDO DA TELA: quantas vezes ficou pesado e a que horas, media do periodo,
+    programa que mais consumiu. Responde a ideia 3 original do usuario.
+    MAIS UMA LINHA, vinda do C4 descartado: quanto espaco de disco foi ocupado no
+    periodo e quanto resta. FATO, nunca previsao de quando enche.
+
+    SO DISPARA se houve pelo menos um alerta no periodo. Dia calmo = silencio.
+    Aviso diario dizendo "esta tudo bem" vira ruido em uma semana.
+
+    TESTADO em 2026-08-25: plyer NAO trata clique. Dispara e esquece — nao ha como
+    saber se alguem clicou (nenhum callback em balloontip.py).
+    CONSEQUENCIA: a notificacao passa a sair pelo icone da bandeja (A13), que
+    consegue detectar o clique. O app provavelmente ABANDONA o plyer e cuida das
+    notificacoes sozinho via Shell_NotifyIcon — uma dependencia a menos no fim.
+
+    TELA UNIFICADA COM O C8: a tela do resumo e a tela de diagnostico sao a MESMA,
+    com duas secoes (resumo de uso / diagnostico da maquina). Duas janelas
+    secundarias num app minimalista e uma a mais que o necessario.
+
+    A DEFINIR NA SPEC: contar tempo de PC LIGADO (preferencia registrada) ou tempo de
+    app aberto. Com o app na bandeja os dois quase se igualam, mas nao sao a mesma
+    medida. PC ligado e o que interessa a quem quer saber como a maquina se comportou.
+
+    SUBSTITUI O C2 (grafico), que foi descartado: entrega o mesmo valor com a
+    conclusao pronta, sem exigir que o usuario interprete nada.
+
+C4. Alerta preditivo de espaco  >>> DESCARTADA COMO PREVISAO (2026-08-25)
+    Era: "no ritmo atual, seu disco enche em ~3 semanas", como o CleanMyMac.
+
+    RECUSADA PELO USUARIO, com o argumento que decide: disco nao enche num ritmo,
+    enche AOS PULOS. Passa tres meses parado e um jogo de 80 GB entra numa tarde.
+    Nao existe ritmo para extrapolar — qualquer prazo que o app desse seria inventado.
+    O risco que eu mesmo havia levantado (previsao errada destroi confianca) domina:
+    o app viraria "o app que mente".
+
+    SOBREVIVE A PARTE QUE E MEDICAO, NAO PREVISAO:
+      "Voce ocupou 30 GB no ultimo mes. Restam 12 GB."
+      Fato do que ja aconteceu, conclusao deixada com o usuario.
+      NAO vira item proprio: entra como UMA LINHA na tela do C3, junto do resumo.
+
+C5. Exportar historico em CSV  >>> PROXIMA (2026-08-25)  [depende de C1]
+    Botao que salva os dados guardados num arquivo de planilha.
+    MOTIVO DE ADIAR: nao e para o publico do app. Quem exporta CSV e analisa uso de
+    CPU no Excel e tecnico — e essa pessoa nao usa um app de semaforo.
+    UNICO USO REAL: suporte a distancia ("manda o arquivo que eu olho"). E ferramenta
+    de suporte, nao recurso de produto.
+    CUSTO DE ADIAR: zero. O banco vai estar la; exportar depois e meia hora de
+    trabalho no dia em que fizer falta.
+
+C6. Overlay compacto sempre visivel  >>> PROXIMA (2026-08-25)
+    Janelinha pequena, so os semaforos, sem texto, flutuando por cima. Versao boa do
+    A12 (que foi descartado por ser a janela INTEIRA por cima de tudo).
+
+    MOTIVO DE ADIAR: ficou orfa depois do A13. O icone da bandeja colorido pelo PIOR
+    status ja entrega "ver o estado sem abrir nada", ocupando zero espaco e sem
+    janela flutuando.
+    O modo mini so ganharia do icone se o usuario quisesse ver os quatro semaforos
+    separados ao mesmo tempo, em vez de um so indicando o pior. Pouca diferenca para
+    uma janela a mais para manter.
+    DECIDIR DEPOIS DO A13 PRONTO: com o icone funcionando da para saber se ele basta.
+    Provavelmente basta.
+
+C7. Configuracao de thresholds pela UI  >>> DESCARTADA (2026-08-25)
+    Tela onde o usuario troca os numeros: em vez de alerta em 85%, ele escolhe 70%
+    ou 95%. Era a "versao com tela" do A10.
+    CUSTO JA NAO ERA O PROBLEMA: com a segunda tela (C3+C8) existindo, seria mais uma
+    secao nela, nao uma janela nova.
+
+    MOTIVO DO CORTE — mesmo do C2 (grafico): para escolher um limite, a pessoa
+    precisa saber o que e um bom limite. Quem sabe isso nao precisa deste app.
+    Ter escolhido 60% e 85% POR ELA e o produto, nao uma limitacao dele.
+    EFEITO COLATERAL: se cada um configura o seu, os textos param de fazer sentido.
+    "Sobrecarga, feche aplicativos" com limite em 40% seria mentira.
+    SE USUARIOS RECLAMAREM que alerta demais ou de menos, o sinal e ajustar o PADRAO
+    para todo mundo — nao transferir a decisao a eles.
+
+C8. Tela de diagnostico  >>> UNIFICADA COM O C3 (2026-08-25)
+    A segunda tela do app e UMA SO, com duas secoes: resumo de uso (C3) e
+    diagnostico da maquina (esta). Ver C3.
+    Nasceu da triagem do B3: existe informacao util que NAO e semaforo e por isso nao
+    cabe em card — numero parado, consultado de vez em quando, nao vigiado.
+    Candidatos que caem aqui:
+      - B3 programas que abrem com o Windows (com instrucao de COMO desligar)
+      - B7 quantos programas abertos
+      (B6 uptime saiu daqui: aprovado como linha no rodape da tela principal)
+      - modelo dos discos, saude, tamanho (sobra do A5)
+    A tela principal continua so com os semaforos vivos; o que e consulta vai para ca.
+    AVISO: nao deixar virar HWiNFO. Poucas linhas, sem jargao, cada uma com o que
+    fazer a respeito.
+
+
+===============================================================================
+PARADAS — levantadas mas nao triadas
+===============================================================================
+
+D1. Animacoes na interface  >>> PARADA (2026-08-25, a pedido do usuario)
+    Usuario achou sites de animacao e considerou usar. Nao triado — retomar quando
+    ele trouxer os links.
+
+    ALERTA JA DADO: quase todo site de animacao e para WEB (Lottie, GSAP, Framer
+    Motion, Animate.css). O app e CustomTkinter, que por baixo e Tcl/Tk — nao ha CSS
+    nem navegador. Codigo desses sites NAO funciona aqui.
+
+    O QUE E POSSIVEL, e barato porque so roda no momento da mudanca:
+      - transicao suave de cor no semaforo (deslizar entre as cores, ~0.5s)
+      - pulsacao no estado de Alerta (chama o olho quando importa)
+      - numero subindo/descendo suave em vez de saltar
+    Lottie e tecnicamente possivel (renderizar quadro a quadro com Pillow, que ja
+    entra pelo A13), mas custa CPU CONTINUAMENTE.
+
+    TENSAO A RESPEITAR: o app tem que ser leve — exigencia do usuario, e a medicao do
+    A2 mostrou que 16% de um nucleo ja era inaceitavel. Um monitor de recursos que
+    gasta recurso para ficar bonito e a mesma piada. Animacao que roda o tempo todo
+    tem esse custo; as tres da lista acima escapam porque param em meio segundo.
+
+    SE ENTRAR: spec propria de interface.
+
+
+===============================================================================
+DESCARTADAS DE PROPOSITO
+===============================================================================
+
+- Temperatura real por sensor, RPM de ventoinha, consumo em watts, tensoes:
+  exigem driver de kernel e admin. Ja descartado desde a versao inicial.
+- Qualquer tela tipo HWiNFO com tabela de dezenas de metricas: mata o proposito do
+  app, que e tranquilizar usuario nao-tecnico com poucos indicadores.
+
+
+===============================================================================
+REFERENCIAS CONSULTADAS
+===============================================================================
+Task Manager, HWiNFO64, NZXT CAM, Core Temp, Rainmeter, iStat Menus, BatteryBar,
+CrystalDiskInfo, CleanMyMac.
