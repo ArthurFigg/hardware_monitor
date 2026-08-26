@@ -245,17 +245,17 @@ def test_aviso_de_reducao_aparece_no_cartao_de_temperatura(_, raiz):
     assert "diminuiu a velocidade" in app._cards["temperatura"].linha_extra
 
 
-@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
-def test_aviso_de_reducao_nao_muda_o_status_do_cartao(_, raiz):
-    """Frear por calor é o processador se protegendo — informação, não emergência."""
-    app = _app_com_reducao_imediata(raiz)
-    app._atualizar_cards(_dados_quentes(85.0, reduzindo=True))
-    sem_aviso = _app_com_reducao_imediata(raiz)
-    sem_aviso._atualizar_cards(_dados_quentes(120.0))
-    assert (
-        app._cards["temperatura"].status_atual
-        == sem_aviso._cards["temperatura"].status_atual
-    )
+def test_aviso_de_reducao_nao_muda_o_status_do_cartao():
+    """Frear por calor é o processador se protegendo — informação, não emergência.
+
+    Comparado no recurso e não em duas janelas: o cartão só exibe o que `classificar`
+    devolve, e duas janelas dependeriam do relógio do Tk para dar o mesmo resultado.
+    """
+    com_aviso = _dados_quentes(85.0, reduzindo=True)
+    sem_aviso = _dados_quentes(120.0, reduzindo=False)
+    assert recursos.TEMPERATURA.classificar(
+        recursos.TEMPERATURA.extrair(com_aviso)
+    ) == recursos.TEMPERATURA.classificar(recursos.TEMPERATURA.extrair(sem_aviso))
 
 
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
@@ -293,3 +293,176 @@ def test_aviso_nao_aparece_antes_da_coleta_confirmar(_, raiz):
     app = _app_com_reducao_imediata(raiz)
     app._atualizar_cards(_dados_quentes(85.0, reduzindo=False))
     assert app._cards["temperatura"].linha_extra == ""
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_interruptor_nasce_marcado_quando_a_entrada_existe(_, raiz):
+    """A entrada no registro é o estado — o interruptor não guarda o dele."""
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=True):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    assert app.abrir_com_o_windows
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_interruptor_nasce_desmarcado_quando_a_entrada_nao_existe(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=False):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    assert not app.abrir_com_o_windows
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_marcar_o_interruptor_grava_a_entrada(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=False):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    app._interruptor_inicio.select()
+    with patch.object(ui.app.inicializacao, "ativar", return_value=True) as ativar:
+        app._alternar_inicio()
+    ativar.assert_called_once()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_desmarcar_o_interruptor_remove_a_entrada(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=True):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    app._interruptor_inicio.deselect()
+    with patch.object(
+        ui.app.inicializacao, "desativar", return_value=True
+    ) as desativar:
+        app._alternar_inicio()
+    desativar.assert_called_once()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_escrita_bloqueada_desmarca_o_interruptor(_, raiz):
+    """Falhar calado deixaria a caixa marcada e o app não abriria no boot seguinte."""
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=False):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    app._interruptor_inicio.select()
+    with patch.object(ui.app.inicializacao, "ativar", return_value=False):
+        app._alternar_inicio()
+    assert not app.abrir_com_o_windows
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_escrita_bloqueada_explica_o_motivo(_, raiz):
+    """Só desmarcar pareceria defeito do app: 'cliquei e não marcou'."""
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=False):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    app._interruptor_inicio.select()
+    with patch.object(ui.app.inicializacao, "ativar", return_value=False):
+        app._alternar_inicio()
+    assert "Não foi possível ativar" in app.aviso_inicio
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_aviso_some_quando_a_escrita_passa(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=False):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    app._interruptor_inicio.select()
+    with patch.object(ui.app.inicializacao, "ativar", return_value=False):
+        app._alternar_inicio()
+    app._interruptor_inicio.select()
+    with patch.object(ui.app.inicializacao, "ativar", return_value=True):
+        app._alternar_inicio()
+    assert app.aviso_inicio == ""
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_rodape_mostra_o_uptime(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with (
+        patch.object(ui.app.inicializacao, "ativado", return_value=False),
+        patch("ui.app.segundos_ligado", return_value=5 * 3600 + 23 * 60),
+    ):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    assert app.texto_uptime == "Ligado há 5h 23min"
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_uptime_indisponivel_esconde_a_linha(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with (
+        patch.object(ui.app.inicializacao, "ativado", return_value=False),
+        patch("ui.app.segundos_ligado", return_value=None),
+    ):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+        raiz.update_idletasks()
+    assert not app._label_uptime.winfo_manager()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_uptime_indisponivel_nao_quebra_a_janela(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with (
+        patch.object(ui.app.inicializacao, "ativado", return_value=False),
+        patch("ui.app.segundos_ligado", return_value=None),
+    ):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    assert app.cards_visiveis() == ["cpu", "ram", "disco", "temperatura"]
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_remocao_bloqueada_remarca_o_interruptor(_, raiz):
+    """Caixa desmarcada com a entrada ainda no registro faria o app abrir mesmo assim."""
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=True):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    app._interruptor_inicio.deselect()
+    with patch.object(ui.app.inicializacao, "desativar", return_value=False):
+        app._alternar_inicio()
+    assert app.abrir_com_o_windows
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_remocao_bloqueada_avisa_que_o_app_ainda_vai_abrir(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=True):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    app._interruptor_inicio.deselect()
+    with patch.object(ui.app.inicializacao, "desativar", return_value=False):
+        app._alternar_inicio()
+    assert "ainda vai abrir" in app.aviso_inicio
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_remocao_que_passa_nao_deixa_aviso(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with patch.object(ui.app.inicializacao, "ativado", return_value=True):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    app._interruptor_inicio.deselect()
+    with patch.object(ui.app.inicializacao, "desativar", return_value=True):
+        app._alternar_inicio()
+    assert app.aviso_inicio == ""

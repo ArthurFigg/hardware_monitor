@@ -146,3 +146,7 @@ própria janela; e o rodapé mostra há quanto tempo a máquina está ligada.
   janela, junto do botão de tema.
 - **Qualidade — dívidas conhecidas** → o construtor de `ui/app.py` ganha mais elementos;
   reavaliar o item das funções acima de 20 linhas ao fechar a spec.
+
+
+---
+**Status:** concluida em 2026-08-26

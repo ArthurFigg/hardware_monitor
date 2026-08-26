@@ -22,9 +22,10 @@ A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 
 - `ideias.txt` — histórico completo, incluindo o que foi recusado e por quê
 
 A triagem falava em 6 specs; o `/spec` gerou **7** — a fila real está em `.claude/specs/`.
-As specs 1 (notificações por recurso), 2 (medição de disco) e 3 (redução de velocidade por
-calor) foram concluídas em 26/08/2026. As 4 restantes estão aprovadas pelo `/spec-review` e
-pendentes, na ordem 04 → 07. A próxima é a **04 — abrir com o Windows e rodapé**.
+As specs 1 (notificações por recurso), 2 (medição de disco), 3 (redução de velocidade por
+calor) e 4 (abrir com o Windows e rodapé) foram concluídas em 26/08/2026. As 3 restantes
+estão aprovadas pelo `/spec-review` e pendentes, na ordem 05 → 07. A próxima é a
+**05 — ícone na bandeja**.
 
 Para rodar:
 
@@ -32,7 +33,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (198 testes, todos passando):
+Para rodar os testes (246 testes, todos passando):
 
 ```
 uv run pytest -v
@@ -69,7 +70,7 @@ hardware_monitor/
 │   └── manager.py        — GerenciadorNotificacoes: dispara notificação uma vez por período de alerta
 ├── tests/
 │   ├── hardware/
-│   │   ├── test_collector.py   — 6 testes (mock psutil)
+│   │   ├── test_collector.py   — 8 testes (mock psutil)
 │   │   ├── test_desempenho.py  — 11 testes (pdh mockado)
 │   │   ├── test_discos.py      — 24 testes (mock psutil e PowerShell)
 │   │   ├── test_pdh.py         — 16 testes (pdh.dll mockada)
@@ -78,12 +79,21 @@ hardware_monitor/
 │   │                             calor, RastreadorAlerta)
 │   ├── ui/
 │   │   ├── conftest.py         — fixture raiz (CTk, session-scoped)
-│   │   ├── test_app.py         — 22 testes
+│   │   ├── test_app.py         — 33 testes
 │   │   ├── test_cards.py       — 13 testes
 │   │   └── test_semaphore.py   — 5 testes
 │   ├── notifications/
 │   │   └── test_manager.py     — 13 testes (mock plyer)
+│   ├── sistema/
+│   │   ├── test_inicializacao.py — 18 testes (winreg mockado)
+│   │   ├── test_estado.py        — 8 testes (pasta temporária)
+│   │   └── test_uptime.py        — 6 testes
 │   └── test_recursos.py        — 33 testes (textos, causas, origem única das frases)
+├── sistema/
+│   ├── __init__.py
+│   ├── inicializacao.py  — entrada na chave Run do HKCU; caminho resolvido em execução
+│   ├── estado.py         — o pouco que o app lembra entre execuções, em %LOCALAPPDATA%
+│   └── uptime.py         — "Ligado há 5h 23min" a partir dos segundos desde o boot
 ├── recursos.py           — Recurso: fonte única do que o app vigia e do que ele diz
 ├── main.py               — cria CTk root, instancia AplicativoMonitor, chama mainloop()
 ├── aprovados.txt         — fila da v2: as 6 specs, com os achados tecnicos de cada uma
@@ -128,6 +138,10 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
 - **Consulta de saúde que falha devolve `None`, e `None` não é "todos saudáveis".** Tupla
   vazia é informação ("consultei, está tudo bem"); `None` é ausência dela. Os dois escondem
   a linha, mas só o segundo poderia virar alerta falso se fossem confundidos.
+- **Laço agendado com `after()` para de mexer na tela assim que o app para.** Tanto a
+  atualização dos cartões quanto a do rodapé checam isso **na entrada**, não só na hora de
+  reagendar: sem essa checagem, um callback já agendado ainda dispara depois do fechamento e
+  escreve em widget em destruição.
 - **A velocidade real do processador vem de uma consulta PDH persistente**, aberta uma
   vez e reaproveitada, com o nome do contador resolvido pelo **número** (`Processor
   Information` = 2610, `% Processor Performance` = 2660). Confirmado nesta máquina: o nome
@@ -239,6 +253,11 @@ Temperatura:
 - Estilo minimalista, sem bordas pesadas ou gráficos de linha
 - Suporte a Light Mode e Dark Mode com botão toggle
 - Valor numérico exibido em todos os cards: percentual (%) para CPU/RAM/Disco, temperatura estimada (~°C) para Temperatura
+- **Rodapé:** interruptor "Abrir junto com o Windows" à esquerda, botão de tema à direita, e
+  abaixo a linha discreta de uptime da máquina ("Ligado há 5h 23min") — sem cor e sem
+  semáforo, porque não existe uptime em alerta. Atualiza de minuto em minuto.
+- O rodapé usa `grid`, não `pack`: a regra de packing do projeto (`side="right"` antes de
+  qualquer `expand=True`) é fácil de violar sem perceber, e o `grid` não tem esse problema.
 
 ## Melhorias — ver `aprovados.txt`
 A lista solta que existia aqui foi substituída pela triagem de 25/08/2026. Não reintroduzir itens aqui: `aprovados.txt` é a fila, `ideias.txt` é o histórico.
@@ -247,7 +266,7 @@ As 7 specs aprovadas, na ordem:
 1. ~~Notificações que dizem qual recurso e qual programa~~ — **concluída em 2026-08-26**
 2. ~~Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos~~ — **concluída em 2026-08-26**
 3. ~~Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)~~ — **concluída em 2026-08-26**
-4. Abrir com o Windows e uptime no rodapé
+4. ~~Abrir com o Windows e uptime no rodapé~~ — **concluída em 2026-08-26**
 5. Ícone na bandeja, com minimizar para lá
 6. Cartão de placa de vídeo com uso real (usa o mecanismo da spec 3)
 7. Empacotar em `.exe` (depende do caminho definido na spec 4)
@@ -284,16 +303,32 @@ O app será usado por outras pessoas, em outras máquinas, com outros Windows.
 ## Persistência de estado
 - Nada é gravado em disco na v1.
 - A partir da v2, o que for gravado vai para `%LOCALAPPDATA%` — **nunca** na pasta do app.
-  Vale para o histórico e para o interruptor de abrir com o Windows.
+- **O interruptor de abrir com o Windows não tem estado próprio.** A entrada na chave `Run`
+  do `HKCU` **é** o estado: o app a lê ao abrir e o interruptor nasce do que está lá. Assim
+  não há como o interruptor discordar da realidade, nem quando a pessoa remove a entrada por
+  fora, pelo Gerenciador de Tarefas.
+- O que de fato vai para `%LOCALAPPDATA%` é o `sistema/estado.py`
+  (`%LOCALAPPDATA%\MonitorDeHardware\estado.json`), hoje sem conteúdo próprio — ele existe
+  para a spec 5 lembrar se já mostrou a mensagem de primeira vez.
 - A pasta deste projeto está dentro do OneDrive: gravar aqui sincronizaria arquivo sem parar.
 
-## Ciclo de vida da janela (a implementar na spec 4)
-- O app abre junto com o Windows, **minimizado**, e nunca rouba a tela no boot.
+## Ciclo de vida da janela
+
+**Implementado na spec 4 em 26/08/2026:**
+- O app abre junto com o Windows, **minimizado**, e nunca rouba a tela no boot. A entrada
+  passa `--minimizado`, e o `.exe` da spec 7 precisa aceitar exatamente esse argumento.
 - Isso é opcional e reversível por um interruptor na própria interface. Programa que se
-  instala na inicialização e não oferece saída é comportamento de coisa ruim.
-- Fechar a janela esconde para a bandeja; não encerra o monitoramento.
-- Entrada de inicialização na chave `Run` do `HKCU` (não exige admin), apontando para o
-  `.exe` da spec 7.
+  instala na inicialização e não oferece saída é comportamento de coisa ruim — e isso vale
+  nos dois sentidos: **quando a remoção da entrada falha, o interruptor volta a marcado e
+  avisa que o app ainda vai abrir.** Desmarcar em silêncio com a entrada ainda lá seria
+  exatamente o comportamento que a regra proíbe.
+- Entrada na chave `Run` do `HKCU` (não exige admin). O caminho é resolvido em tempo de
+  execução: `pythonw.exe` mais o `main.py` em desenvolvimento, o `.exe` quando empacotado.
+  Nunca caminho fixo — na máquina de quem instalar, a pasta deste projeto não existe.
+
+**Ainda pendente (spec 5):**
+- Fechar a janela esconde para a bandeja; não encerra o monitoramento. Hoje fechar ainda
+  encerra o app.
 
 ## Configuração
 O app **não tem configuração pelo usuário**, e isso é decisão, não esquecimento.
@@ -402,6 +437,14 @@ todas devem ser resolvidas na etapa de setup, antes da primeira spec.
 - **`ConfirmadorSustentado` e `RastreadorAlerta` implementam a mesma janela de tempo**, um
   sobre `bool` e outro sobre `Status`. Duplicação consciente: unificar é mexer em código de
   outra spec que funciona, e a regra do projeto manda perguntar antes de refatorar.
+- **Texto de interface mora em três lugares agora:** `recursos.py` (textos de recurso),
+  `ui/app.py` (os avisos do interruptor de inicialização) e `sistema/uptime.py` ("Ligado
+  há"). A regra escrita diz "origem única em `recursos.py`", e o teste que a guarda cobre só
+  os textos de recurso. Decidir se a regra passa a dizer "textos de recurso" ou se essas
+  frases migram.
+- **`_criar_rodape` em `ui/app.py` tem 41 linhas** — são quatro construções de widget em
+  sequência. Em compensação o `__init__` caiu de 35 para 20, com `_preparar_janela`,
+  `_criar_cards` e `_criar_rodape` extraídos.
 - **Três funções em `hardware/pdh.py` passam de 20 linhas** (`_abrir` 30, `ler` 23,
   `__init__` 22). Ficam assim porque a spec 6 importa `pdh.py` **sem editar**, e quebrar as
   funções agora mudaria a superfície que ela vai consumir.

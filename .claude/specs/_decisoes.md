@@ -168,3 +168,31 @@ relógio passa a andar duas vezes por ciclo e a janela encolhe pela metade, sem 
 teste vermelho.
 **Custo aceito:** o objeto de dados carrega um campo já decidido em vez de só medições
 cruas, e quem lê não consegue recalcular a janela com outro tempo.
+
+
+## Ação que a pessoa pediu nunca falha em silêncio, nos dois sentidos
+
+**Contexto:** a regra geral do projeto é que leitura que falha esconde a si mesma — cartão
+some, linha some, e o app segue funcionando. Isso vale para o que o app foi buscar sozinho.
+**Decisão:** quando a operação foi **pedida pela pessoa** — um interruptor, um botão —,
+falhar em silêncio não é opção. O controle volta para o estado que o sistema de fato tem, e
+uma linha explica por quê. E vale nos dois sentidos: ligar que não ligou e desligar que não
+desligou são igualmente mentira, sendo o segundo pior, porque o efeito indesejado continua
+acontecendo e a pessoa descobre pela presença dele.
+**Descartado:** reverter o controle sem texto. Pareceria defeito do próprio app — "cliquei e
+não marcou" — e a pessoa tentaria de novo pelo resto da vida.
+**Custo aceito:** cada ação reversível precisa de duas frases, uma por sentido, e de um lugar
+na tela para exibi-las.
+
+## Caminho de executável é resolvido em execução, nunca escrito no código
+
+**Contexto:** o app grava no sistema operacional um comando que o inicia — e esse comando
+precisa funcionar na máquina de quem instalou, não na de quem desenvolveu.
+**Decisão:** o caminho sai do interpretador em uso no momento, com dois ramos: rodando do
+código-fonte, aponta para o interpretador sem console mais o script de entrada; rodando
+empacotado, aponta para o próprio executável. Há teste que varre o fonte atrás de caminho de
+máquina escrito à mão.
+**Descartado:** gravar o caminho durante o desenvolvimento e ajustar depois. Funciona na
+máquina de quem escreveu e em nenhuma outra, e o erro só aparece no computador de terceiros.
+**Custo aceito:** o código carrega os dois ramos e um deles nunca roda em desenvolvimento,
+então precisa de teste próprio para não apodrecer sem ninguém notar.

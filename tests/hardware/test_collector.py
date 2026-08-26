@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from hardware.collector import DadosHardware, coletar
+from hardware.collector import DadosHardware, coletar, segundos_ligado
 from hardware.discos import LeituraDisco, Unidade
 
 _LEITURA = LeituraDisco(
@@ -53,3 +53,17 @@ def test_coletar_avanca_a_janela_do_aviso_de_calor():
     ) as confirmar:
         assert coletar().reduzindo
         confirmar.assert_called_once()
+
+
+def test_segundos_ligado_conta_desde_o_boot():
+    with (
+        patch("hardware.collector.psutil.boot_time", return_value=1000.0),
+        patch("hardware.collector.time.time", return_value=1000.0 + 3600),
+    ):
+        assert segundos_ligado() == 3600
+
+
+def test_segundos_ligado_indisponivel_devolve_none():
+    """Leitura que falha esconde a linha do rodapé, nunca quebra a janela."""
+    with patch("hardware.collector.psutil.boot_time", side_effect=OSError):
+        assert segundos_ligado() is None

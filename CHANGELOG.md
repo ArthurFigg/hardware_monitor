@@ -14,6 +14,9 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   do sistema; unidades removíveis, de rede e a partição de recuperação ficam de fora
 - O cartão de Temperatura avisa quando o processador diminui a própria velocidade para
   não esquentar — sem mudar de cor nem notificar, porque não há o que fazer a respeito
+- Interruptor para abrir o app junto com o Windows, já minimizado e sem roubar a tela no
+  boot; desmarcar desfaz, e se algo bloquear a mudança o app diz o que aconteceu
+- O rodapé mostra há quanto tempo o computador está ligado
 
 ### Modificado
 - O alerta de disco cheio passou a considerar também quanto espaço sobrou, e não só o

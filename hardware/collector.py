@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 
 import psutil
@@ -13,6 +14,19 @@ class DadosHardware:
     disco: LeituraDisco
     velocidade: float | None = None
     reduzindo: bool = False
+
+
+def segundos_ligado() -> float | None:
+    """Há quanto tempo a máquina está ligada, ou None quando não dá para saber.
+
+    Da máquina, não do app: é o que interessa a quem quer saber como ela se comportou.
+    Não entra em `DadosHardware` porque muda de minuto em minuto, e o resto do ciclo
+    roda a cada segundo.
+    """
+    try:
+        return time.time() - psutil.boot_time()
+    except (OSError, RuntimeError):
+        return None
 
 
 def coletar() -> DadosHardware:
