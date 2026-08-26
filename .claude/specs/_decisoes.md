@@ -121,3 +121,20 @@ pago quatro vezes depois.
 texto de interface e regra de classificação ao mesmo tempo. Quem procurar por camada não
 acha de primeira.
 
+
+
+## A tela pede texto já resolvido, nunca decide qual texto usar
+
+**Contexto:** um recurso pode ter mais de uma redação para o mesmo status, porque a causa
+muda o conselho — disco em Alerta por falta de espaço manda apagar arquivo, disco em Alerta
+por desgaste manda fazer cópia, e trocar os dois dá conselho que não resolve nada. O cartão
+recebia só o status e escolhia o texto por conta própria, o que na prática significava
+escolher sempre a primeira redação.
+**Decisão:** o cartão chama funções que já receberam a leitura e devolvem texto pronto —
+descrição, valor formatado e linha extra. Quem decide qual redação vale é a descrição do
+recurso, a partir dos dados; a tela só exibe o que voltou.
+**Descartado:** passar a causa para o cartão junto do status. Funciona, mas espalha a regra:
+cada componente novo precisaria saber que existe causa e lembrar de repassá-la.
+**Custo aceito:** as funções que a tela recebe têm assinatura `(status, valor)` mesmo quando
+o recurso ignora o valor, e um recurso que não declara variante nenhuma paga um desvio
+inútil. Em troca, acrescentar redação nova não exige tocar em nenhum componente de tela.

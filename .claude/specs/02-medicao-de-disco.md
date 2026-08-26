@@ -167,3 +167,7 @@ percentual ocupado e espaço livre, e avisar quando um disco físico dá sinais 
   unidades fixas; unidades menores que 10 GB ficam de fora; saúde relida a cada 6 horas e
   nunca mapeada em unidade.
 - **Melhorias — ver `aprovados.txt`** → marcar a spec 2 como especificada.
+
+
+---
+**Status:** concluida em 2026-08-26

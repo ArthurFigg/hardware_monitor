@@ -31,8 +31,9 @@ class AplicativoMonitor(ctk.CTkFrame):
             r.nome: CartaoRecurso(
                 self,
                 titulo=r.rotulo,
-                descricao_fn=r.descricao,
+                descricao_fn=r.descricao_de,
                 formatar_valor=r.formatar_valor,
+                linha_extra_fn=r.linha_extra,
             )
             for r in RECURSOS
         }
@@ -124,7 +125,11 @@ class AplicativoMonitor(ctk.CTkFrame):
 
             programa, consumo = self._identificar_programa(recurso, status)
             self._notificadores[recurso.nome].processar(
-                status, programa=programa, valor=consumo
+                status,
+                causa=recurso.causa(valor),
+                programa=programa,
+                valor=consumo,
+                leitura=valor,
             )
 
     def _identificar_programa(self, recurso, status: Status):

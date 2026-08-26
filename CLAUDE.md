@@ -15,13 +15,16 @@ Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, 
 - pytest 9.0.3 — testes
 - uv — gerenciador de dependências (`uv run`, `uv add`)
 
-## Estado atual — v1 completa; v2 planejada e ainda não implementada
+## Estado atual — v2 em andamento: 1 spec de 7 concluída
 
 A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 12 aprovadas, 11 adiadas, 7 descartadas. O plano vive em dois arquivos na raiz:
-- `aprovados.txt` — o que fazer, agrupado em 6 specs, com os achados técnicos de cada uma
+- `aprovados.txt` — o que fazer, agrupado em specs, com os achados técnicos de cada uma
 - `ideias.txt` — histórico completo, incluindo o que foi recusado e por quê
 
-Nenhuma das 6 specs foi implementada ainda.
+A triagem falava em 6 specs; o `/spec` gerou **7** — a fila real está em `.claude/specs/`.
+As specs 1 (notificações por recurso) e 2 (medição de disco) foram concluídas em
+26/08/2026. As 5 restantes estão aprovadas pelo `/spec-review` e pendentes, na ordem
+03 → 07. A próxima é a **03 — redução de velocidade por calor**.
 
 Para rodar:
 
@@ -29,7 +32,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (97 testes, todos passando):
+Para rodar os testes (150 testes, todos passando):
 
 ```
 uv run pytest -v
@@ -43,8 +46,11 @@ hardware_monitor/
 │   ├── __init__.py
 │   ├── collector.py      — DadosHardware dataclass + coletar()
 │   ├── processos.py      — varredura sob demanda: quem está consumindo CPU/RAM
+│   ├── discos.py         — unidades fixas (filtros de removível/rede/CD e de <10 GB) +
+│                           saúde dos discos físicos via Get-PhysicalDisk, com cache de 6h
 │   └── thresholds.py     — Status enum, classificar(), classificar_temperatura(),
 │                           estimar_temperatura(), descricao(), descricao_temperatura(),
+│                           classificar_unidade(), classificar_disco(), mais_grave(),
 │                           RastreadorAlerta
 ├── ui/
 │   ├── __init__.py
@@ -61,14 +67,18 @@ hardware_monitor/
 ├── tests/
 │   ├── hardware/
 │   │   ├── test_collector.py   — 4 testes (mock psutil)
-│   │   └── test_thresholds.py  — 32 testes (limites, textos, temperatura, RastreadorAlerta)
+│   │   ├── test_discos.py      — 24 testes (mock psutil e PowerShell)
+│   │   ├── test_processos.py   — 8 testes (mock psutil)
+│   │   └── test_thresholds.py  — 34 testes (limites, textos, temperatura, disco,
+│   │                             RastreadorAlerta)
 │   ├── ui/
 │   │   ├── conftest.py         — fixture raiz (CTk, session-scoped)
-│   │   ├── test_app.py         — 6 testes
-│   │   ├── test_cards.py       — 9 testes
+│   │   ├── test_app.py         — 16 testes
+│   │   ├── test_cards.py       — 13 testes
 │   │   └── test_semaphore.py   — 5 testes
-│   └── notifications/
-│       └── test_manager.py     — 5 testes (mock plyer)
+│   ├── notifications/
+│   │   └── test_manager.py     — 13 testes (mock plyer)
+│   └── test_recursos.py        — 33 testes (textos, causas, origem única das frases)
 ├── recursos.py           — Recurso: fonte única do que o app vigia e do que ele diz
 ├── main.py               — cria CTk root, instancia AplicativoMonitor, chama mainloop()
 ├── aprovados.txt         — fila da v2: as 6 specs, com os achados tecnicos de cada uma
@@ -97,6 +107,29 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
 - O **pior status** entre os recursos é calculado em `recursos.py`, nunca em `app.py`. Recurso indisponível fica de fora da conta e o cartão dele some da tela.
 - Temperatura é **estimada** a partir do % de CPU (`estimar_temperatura(cpu)`): idle=35°C, carga máxima=85°C. Consequência a não esquecer: o card de Temperatura **não carrega informação independente** — é o % de CPU escrito em outra unidade. Por isso os pontos de corte dos dois precisam ficar alinhados (ver Thresholds), e por isso a spec 3 importa: o aviso de redução por calor é o primeiro sinal real que esse card ganha. Não usa WMI nem sensor real — leitura de sensor no Windows exige driver de kernel (admin) e não é viável sem dependência externa.
 - `CartaoRecurso` aceita `descricao_fn` e `formatar_valor` para suportar textos e formatos diferentes por recurso sem duplicar o componente.
+- **O Disco olha todas as unidades fixas, e o status do cartão é o pior entre elas.**
+  Unidade removível, de rede, de CD e qualquer uma com menos de 10 GB de tamanho total
+  ficam de fora — este último filtro existe pela partição de recuperação do Windows
+  (~500 MB, sempre quase cheia), que sem ele deixaria o app em Alerta permanente. O
+  cartão exibe a unidade que decidiu o status, nomeada: "D: — 100%". **A pior unidade
+  é a de pior status, não a de maior percentual** — as duas regras podem apontar para
+  discos diferentes (um SSD de sistema com 8 GB livres está em Alerta pela regra de
+  espaço e perde no percentual para um HD em 94% que está só em Atenção), e ordenar pelo
+  percentual faria o semáforo acender por um disco e o rótulo nomear outro.
+- **A saúde é do disco físico e nunca é mapeada em unidade.** Um disco com várias
+  partições faria o mapeamento errar, então a linha extra nomeia o disco. É relida a cada
+  6 horas: desgaste evolui em semanas, a consulta custa ~3 s (abre um PowerShell), e o app
+  vai viver na bandeja por semanas sem reiniciar (spec 4).
+- **Consulta de saúde que falha devolve `None`, e `None` não é "todos saudáveis".** Tupla
+  vazia é informação ("consultei, está tudo bem"); `None` é ausência dela. Os dois escondem
+  a linha, mas só o segundo poderia virar alerta falso se fossem confundidos.
+- **`Recurso` ganhou `causa_fn`, `linha_extra_fn`, `detalhe_fn` e `descricao_de()`** — o
+  Disco é o único que os usa hoje. Sem eles, a variante de texto de desgaste que a spec 1
+  escreveu era código morto: não havia caminho que a acionasse. O cartão chama
+  `descricao_de(status, valor)`, que resolve a causa a partir da leitura — chamar
+  `descricao(status)` direto devolvia sempre a causa padrão, que para o Disco é espaço, e
+  o disco em desgaste mandava apagar arquivo. `app.py` mudou em três linhas e continua sem
+  conhecer recurso por nome.
 
 ## Thresholds (nunca alterar sem avisar)
 Fronteiras são inclusivas no limite inferior (`>=`), como o código faz — 60,0% já é Atenção; 85,0% já é Alerta.
@@ -114,7 +147,17 @@ O Alerta continua em 80°C (CPU 90%) de propósito, com a CPU ficando vermelha a
 
 **A implementar na spec 3** (`LIMITE_TEMP_ATENCAO` em `thresholds.py`, mais os testes de limite em `test_thresholds.py`). Esta skill não altera código.
 
-**Disco (a mudar na spec 2 — este é o aviso exigido acima):** hoje o Disco não tem threshold próprio. Ele passa pelo mesmo `classificar()` de CPU e RAM (60/85) e herda o mesmo texto, o que produz conselho errado: disco 87% cheio manda "feche aplicativos inativos", e fechar programa não libera espaço em disco. A **spec 1** é dona de todos os textos do Disco — ela é dona de tudo que o app diz. A **spec 2** cria `classificar_disco()` e decide o limiar. Textos e medição foram separados de propósito: o texto não depende do limite.
+**Disco — implementado na spec 2 em 26/08/2026.** Tem limiares próprios, e dois de cada
+tipo. Cada unidade é classificada pelo **pior dos dois critérios**, o que acontecer primeiro:
+
+- Atenção: 85% ocupado **ou** menos de 20 GB livres
+- Alerta: 95% ocupado **ou** menos de 10 GB livres, por mais de 5 segundos
+- Desgaste do disco físico: **Alerta direto**, sem passar pelos números
+
+Percentual sozinho não serve: 95% de um SSD de 120 GB deixa 6 GB, com o que o Windows já não
+instala atualização — avisaria tarde. 95% de 1 TB deixa 50 GB, que é folga — avisaria cedo, e
+alarme falso ensina a ignorar o semáforo. Verificado nesta máquina em 26/08/2026: C: em 77,6%
+com 208 GB livres (Normal) e D: em 99,6% com 478 MB livres (Alerta pelos dois critérios).
 
 ## Textos da interface (usar exatamente esses, sem alterar tom)
 
@@ -137,8 +180,19 @@ Notificações (título + corpo), uma por recurso:
 - RAM: "Memória em sobrecarga" / mesma frase, trocando CPU por memória
 - Disco (espaço): "Espaço em disco acabando" / "Apague arquivos grandes ou mova para outro lugar."
 - Disco (desgaste): "Disco com sinais de desgaste" / "Faça uma cópia dos seus arquivos importantes."
+- O texto de desgaste do cartão vale em **Atenção e em Alerta**, com a mesma frase: o
+  `RastreadorAlerta` segura o Disco em Atenção nos primeiros 5 s, e sem a variante nesse
+  status o cartão cairia no texto de espaço — mandando apagar arquivo para resolver
+  defeito de hardware.
 - Temperatura: "Temperatura crítica" / "O processador está muito quente. Feche programas pesados e verifique a ventilação."
 - Sem programa identificado, o corpo sai só com a frase de ação — nunca com lacuna vazia.
+- O alerta de espaço ganha os números antes da ação: "Restam 4,2 GB na unidade C:". É
+  acréscimo, não substituição — a frase de ação continua correta sozinha, e o alerta de
+  desgaste não recebe esse acréscimo porque lá o espaço é irrelevante.
+
+Linha extra do cartão (abaixo da descrição, escondida quando vazia):
+- Disco com desgaste: "O disco {nome} está dando sinais de desgaste."
+- A spec 3 reusa essa mesma linha para o aviso de redução de velocidade por calor.
 
 Temperatura:
 - Normal: "Temperatura dentro do esperado. O processador está operando com segurança."
@@ -162,7 +216,7 @@ A lista solta que existia aqui foi substituída pela triagem de 25/08/2026. Não
 
 As 7 specs aprovadas, na ordem:
 1. ~~Notificações que dizem qual recurso e qual programa~~ — **concluída em 2026-08-26**
-2. Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos
+2. ~~Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos~~ — **concluída em 2026-08-26**
 3. Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)
 4. Abrir com o Windows e uptime no rodapé
 5. Ícone na bandeja, com minimizar para lá

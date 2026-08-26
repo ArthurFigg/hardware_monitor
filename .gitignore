@@ -8,3 +8,4 @@ dist/
 build/
 .env
 preview.py
+.ruff_cache/

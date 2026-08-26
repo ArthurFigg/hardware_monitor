@@ -2,11 +2,14 @@ from unittest.mock import patch
 
 import pytest
 
+from hardware.discos import LeituraDisco, Unidade
 from hardware.thresholds import (
     RastreadorAlerta,
     Status,
     classificar,
+    classificar_disco,
     classificar_temperatura,
+    classificar_unidade,
     estimar_temperatura,
 )
 
@@ -83,3 +86,47 @@ def test_estimar_temperatura_cpu_maxima():
 
 def test_estimar_temperatura_cpu_media():
     assert estimar_temperatura(50.0) == pytest.approx(60.0)
+
+
+def test_unidade_com_folga_e_normal():
+    assert classificar_unidade(40.0, 300.0) == Status.NORMAL
+
+
+def test_unidade_em_85_por_cento_e_atencao():
+    assert classificar_unidade(85.0, 100.0) == Status.ATENCAO
+
+
+def test_unidade_em_95_por_cento_e_alerta_mesmo_com_espaco_de_sobra():
+    """95% de um disco de 2 TB deixa 100 GB — o percentual manda mesmo assim."""
+    assert classificar_unidade(95.0, 100.0) == Status.ALERTA
+
+
+def test_unidade_com_menos_de_10_gb_livres_e_alerta_mesmo_pouco_ocupada():
+    """Disco grande pouco usado não existe assim, mas a regra não pode depender disso."""
+    assert classificar_unidade(50.0, 6.0) == Status.ALERTA
+
+
+def test_unidade_com_menos_de_20_gb_livres_e_atencao():
+    assert classificar_unidade(50.0, 15.0) == Status.ATENCAO
+
+
+def test_disco_assume_o_status_da_pior_unidade():
+    leitura = LeituraDisco(
+        unidades=(
+            Unidade(ponto="C:", percentual=96.0, livre_gb=4.0),
+            Unidade(ponto="D:", percentual=20.0, livre_gb=800.0),
+        )
+    )
+    assert classificar_disco(leitura) == Status.ALERTA
+
+
+def test_disco_sem_nenhuma_unidade_e_normal():
+    assert classificar_disco(LeituraDisco()) == Status.NORMAL
+
+
+def test_desgaste_leva_o_disco_a_alerta():
+    leitura = LeituraDisco(
+        unidades=(Unidade(ponto="C:", percentual=30.0, livre_gb=400.0),),
+        disco_desgastado="CT120BX500SSD1",
+    )
+    assert classificar_disco(leitura) == Status.ALERTA

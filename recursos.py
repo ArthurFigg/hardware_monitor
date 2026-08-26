@@ -12,8 +12,10 @@ from hardware.collector import DadosHardware
 from hardware.thresholds import (
     Status,
     classificar,
+    classificar_disco,
     classificar_temperatura,
     estimar_temperatura,
+    mais_grave,
 )
 
 CAUSA_PADRAO = "padrao"
@@ -45,6 +47,9 @@ class Recurso:
     notificacoes: dict[Status, dict[str, TextoNotificacao]] = field(
         default_factory=dict
     )
+    causa_fn: Callable[[object], str] | None = None
+    linha_extra_fn: Callable[[object], str] | None = None
+    detalhe_fn: Callable[[object], str] | None = None
     causa_padrao: str = CAUSA_PADRAO
     notifica: bool = True
     varre_processos: bool = False
@@ -61,12 +66,37 @@ class Recurso:
             iter(por_causa.values())
         )
 
+    def descricao_de(self, status: Status, valor=None) -> str:
+        """Texto do cartão já resolvido para esta leitura.
+
+        É o que o cartão chama. `descricao()` continua existindo para quem já sabe a
+        causa; aqui ela é derivada do valor, que é o que a tela tem em mãos.
+        """
+        return self.descricao(status, self.causa(valor))
+
+    def causa(self, valor=None) -> str:
+        """Qual variante de texto vale para esta leitura.
+
+        Só o Disco varia: falta de espaço e desgaste pedem conselhos opostos. Quem não
+        declara `causa_fn` fica na causa padrão para sempre.
+        """
+        if self.causa_fn is None or valor is None:
+            return self.causa_padrao
+        return self.causa_fn(valor)
+
+    def linha_extra(self, valor=None) -> str:
+        """Linha abaixo da descrição no cartão. Vazia é o normal, e o cartão a esconde."""
+        if self.linha_extra_fn is None or valor is None:
+            return ""
+        return self.linha_extra_fn(valor)
+
     def texto_notificacao(
         self,
         status: Status,
         causa: str | None = None,
         programa: str | None = None,
         valor: float | None = None,
+        leitura=None,
     ) -> tuple[str, str] | None:
         """(título, corpo), ou None quando o recurso não notifica nesse status."""
         if not self.notifica:
@@ -84,7 +114,17 @@ class Recurso:
             )
         else:
             corpo = texto.corpo
+
+        detalhe = self._detalhe(leitura)
+        if detalhe:
+            corpo = f"{detalhe} {corpo}"
         return texto.titulo, corpo
+
+    def _detalhe(self, leitura) -> str:
+        """Frase de dados que antecede a ação, quando o recurso souber os números."""
+        if self.detalhe_fn is None or leitura is None:
+            return ""
+        return self.detalhe_fn(leitura)
 
 
 _ACAO_FECHAR = "Feche programas que não estiver usando."
@@ -141,12 +181,50 @@ RAM = Recurso(
     },
 )
 
+_LINHA_DESGASTE = "O disco {disco} está dando sinais de desgaste."
+_DESGASTE = (
+    "Disco com sinais de desgaste. Faça uma cópia dos seus arquivos importantes."
+)
+
+
+def _valor_disco(leitura) -> str:
+    """Percentual da unidade que decidiu o status, com o nome dela.
+
+    Sem nenhuma unidade — todas filtradas — o cartão não exibe número nenhum. Vazio é
+    melhor que "0%", que seria mentira sobre um disco que o app não está olhando.
+    """
+    unidade = getattr(leitura, "pior_unidade", None)
+    if unidade is None:
+        return ""
+    return f"{unidade.ponto} — {unidade.percentual:.0f}%"
+
+
+def _linha_desgaste(leitura) -> str:
+    if not getattr(leitura, "disco_desgastado", None):
+        return ""
+    return _LINHA_DESGASTE.format(disco=leitura.disco_desgastado)
+
+
+def _detalhe_disco(leitura) -> str:
+    """Quanto sobrou e onde. Não sai no alerta de desgaste: lá o espaço é irrelevante."""
+    unidade = getattr(leitura, "pior_unidade", None)
+    if unidade is None or getattr(leitura, "disco_desgastado", None):
+        return ""
+    livre = f"{unidade.livre_gb:.1f}".replace(".", ",")
+    return f"Restam {livre} GB na unidade {unidade.ponto}."
+
+
 DISCO = Recurso(
     nome="disco",
     rotulo="Disco",
-    classificar=classificar,
+    classificar=classificar_disco,
     extrair=lambda dados: dados.disco,
-    formatar_valor=lambda v: f"{v:.0f}%",
+    formatar_valor=_valor_disco,
+    causa_fn=lambda leitura: (
+        CAUSA_DESGASTE if getattr(leitura, "disco_desgastado", None) else CAUSA_ESPACO
+    ),
+    linha_extra_fn=_linha_desgaste,
+    detalhe_fn=_detalhe_disco,
     causa_padrao=CAUSA_ESPACO,
     descricoes={
         Status.NORMAL: {
@@ -154,13 +232,16 @@ DISCO = Recurso(
         },
         Status.ATENCAO: {
             CAUSA_ESPACO: "Espaço em disco diminuindo. Vale apagar arquivos que "
-            "você não usa mais."
+            "você não usa mais.",
+            # Mesma frase do Alerta, de propósito. O RastreadorAlerta segura o disco em
+            # Atenção pelos primeiros 5 s, e sem esta entrada o cartão cairia no texto
+            # de espaço — mandando apagar arquivo para resolver defeito de hardware.
+            CAUSA_DESGASTE: _DESGASTE,
         },
         Status.ALERTA: {
             CAUSA_ESPACO: "Espaço em disco acabando. Apague arquivos grandes ou "
             "mova para outro lugar.",
-            CAUSA_DESGASTE: "Disco com sinais de desgaste. Faça uma cópia dos seus "
-            "arquivos importantes.",
+            CAUSA_DESGASTE: _DESGASTE,
         },
     },
     notificacoes={
@@ -209,8 +290,6 @@ TEMPERATURA = Recurso(
 
 RECURSOS: tuple[Recurso, ...] = (CPU, RAM, DISCO, TEMPERATURA)
 
-_ORDEM_GRAVIDADE = {Status.NORMAL: 0, Status.ATENCAO: 1, Status.ALERTA: 2}
-
 
 def por_nome(nome: str) -> Recurso:
     for recurso in RECURSOS:
@@ -225,7 +304,4 @@ def pior_status(statuses) -> Status:
     Recurso indisponível não é informado e portanto fica de fora — cartão que sumiu não
     pode pesar na cor do ícone da bandeja.
     """
-    presentes = [s for s in statuses if s is not None]
-    if not presentes:
-        return Status.NORMAL
-    return max(presentes, key=lambda s: _ORDEM_GRAVIDADE[s])
+    return mais_grave(s for s in statuses if s is not None)

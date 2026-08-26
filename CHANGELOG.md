@@ -8,6 +8,15 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ### Adicionado
 - O aviso de sobrecarga agora diz qual programa está consumindo a máquina, com o
   percentual — em vez de só apontar que algo está pesado
+- Aviso quando um disco começa a dar sinais de desgaste, com o nome do disco — o caso
+  em que apagar arquivo não resolve e o que vale é fazer cópia dos arquivos
+- O cartão de Disco passou a olhar todas as unidades fixas do computador, e não só a
+  do sistema; unidades removíveis, de rede e a partição de recuperação ficam de fora
+
+### Modificado
+- O alerta de disco cheio passou a considerar também quanto espaço sobrou, e não só o
+  percentual: um SSD pequeno em 93% avisa, um HD grande em 90% não incomoda
+- O aviso de espaço acabando agora diz quanto restou e em qual unidade
 
 ### Corrigido
 - O aviso de temperatura crítica falava em "sobrecarga de memória" e mandava fechar

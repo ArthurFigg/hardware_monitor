@@ -1,5 +1,6 @@
 import recursos
 from hardware.collector import DadosHardware
+from hardware.discos import LeituraDisco, Unidade
 from hardware.thresholds import Status
 from recursos import (
     CAUSA_DESGASTE,
@@ -178,3 +179,77 @@ def test_status_sem_texto_cai_no_normal_em_vez_de_quebrar():
         },
     )
     assert sem_alerta.descricao(Status.ALERTA) == "tudo bem"
+
+
+def test_disco_exibe_o_percentual_da_pior_unidade_com_o_nome_dela():
+    leitura = LeituraDisco(
+        unidades=(
+            Unidade(ponto="C:", percentual=91.0, livre_gb=11.0),
+            Unidade(ponto="D:", percentual=20.0, livre_gb=800.0),
+        )
+    )
+    assert DISCO.formatar_valor(leitura) == "C: — 91%"
+
+
+def test_disco_sem_unidades_nao_exibe_numero():
+    assert DISCO.formatar_valor(LeituraDisco()) == ""
+
+
+def test_disco_com_desgaste_usa_a_causa_de_desgaste():
+    leitura = LeituraDisco(disco_desgastado="CT120BX500SSD1")
+    assert DISCO.causa(leitura) == CAUSA_DESGASTE
+
+
+def test_disco_sem_desgaste_usa_a_causa_de_espaco():
+    leitura = LeituraDisco(
+        unidades=(Unidade(ponto="C:", percentual=96.0, livre_gb=4.0),)
+    )
+    assert DISCO.causa(leitura) == CAUSA_ESPACO
+
+
+def test_desgaste_tem_precedencia_sobre_falta_de_espaco():
+    """Apagar arquivo não conserta disco morrendo — o conselho errado seria pior."""
+    leitura = LeituraDisco(
+        unidades=(Unidade(ponto="C:", percentual=96.0, livre_gb=4.0),),
+        disco_desgastado="CT120BX500SSD1",
+    )
+    assert "cópia" in DISCO.descricao(Status.ALERTA, DISCO.causa(leitura))
+
+
+def test_disco_com_desgaste_nomeia_o_disco_na_linha_extra():
+    leitura = LeituraDisco(disco_desgastado="CT120BX500SSD1")
+    assert DISCO.linha_extra(leitura) == (
+        "O disco CT120BX500SSD1 está dando sinais de desgaste."
+    )
+
+
+def test_disco_saudavel_nao_tem_linha_extra():
+    leitura = LeituraDisco(
+        unidades=(Unidade(ponto="C:", percentual=30.0, livre_gb=300.0),)
+    )
+    assert DISCO.linha_extra(leitura) == ""
+
+
+def test_recurso_sem_linha_extra_devolve_vazio():
+    assert CPU.linha_extra(90.0) == ""
+
+
+def test_notificacao_de_espaco_diz_quanto_sobrou_e_onde():
+    leitura = LeituraDisco(
+        unidades=(Unidade(ponto="C:", percentual=96.0, livre_gb=4.2),)
+    )
+    _, corpo = DISCO.texto_notificacao(
+        Status.ALERTA, causa=CAUSA_ESPACO, leitura=leitura
+    )
+    assert corpo.startswith("Restam 4,2 GB na unidade C:.")
+
+
+def test_notificacao_de_desgaste_nao_fala_de_espaco():
+    leitura = LeituraDisco(
+        unidades=(Unidade(ponto="C:", percentual=96.0, livre_gb=4.2),),
+        disco_desgastado="CT120BX500SSD1",
+    )
+    _, corpo = DISCO.texto_notificacao(
+        Status.ALERTA, causa=CAUSA_DESGASTE, leitura=leitura
+    )
+    assert "GB" not in corpo

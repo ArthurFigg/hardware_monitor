@@ -22,6 +22,7 @@ class GerenciadorNotificacoes:
         causa: str | None = None,
         programa: str | None = None,
         valor: float | None = None,
+        leitura=None,
     ) -> None:
         if status != Status.ALERTA:
             self._notificado = False
@@ -30,7 +31,7 @@ class GerenciadorNotificacoes:
         if self._notificado:
             return
 
-        texto = self._recurso.texto_notificacao(status, causa, programa, valor)
+        texto = self._recurso.texto_notificacao(status, causa, programa, valor, leitura)
         if texto is None:
             return
 
