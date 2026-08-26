@@ -4,7 +4,7 @@ import customtkinter as ctk
 
 from hardware.collector import coletar, segundos_ligado
 from hardware.processos import programa_dominante
-from hardware.thresholds import RastreadorAlerta, Status
+from hardware.thresholds import RastreadorAlerta, Status, menos_grave
 from notifications.manager import GerenciadorNotificacoes
 from recursos import RECURSOS, pior_status
 from sistema import inicializacao, uptime
@@ -36,6 +36,10 @@ class AplicativoMonitor(ctk.CTkFrame):
         self._dados_pendentes = None
         self._lock = threading.Lock()
         self._status_atual: dict[str, Status] = {}
+        # Qual recorte cada cartão exibe. Ausente significa "o pior", que é como o app
+        # abre. Só o Disco usa isso hoje.
+        self._selecao: dict[str, int] = {}
+        self._ultimos_dados = None
 
         self._rastreadores = {r.nome: RastreadorAlerta() for r in RECURSOS}
         self._notificadores = {r.nome: GerenciadorNotificacoes(r) for r in RECURSOS}
@@ -60,9 +64,36 @@ class AplicativoMonitor(ctk.CTkFrame):
                 descricao_fn=r.descricao_de,
                 formatar_valor=r.formatar_valor,
                 linha_extra_fn=r.linha_extra,
+                ao_clicar=lambda recurso=r: self._avancar_selecao(recurso),
             )
             for r in RECURSOS
         }
+
+    def _avancar_selecao(self, recurso) -> None:
+        """Clique no cartão passa para o próximo recorte, e volta ao início no fim."""
+        dados = self._ultimos_dados
+        if dados is None:
+            return
+
+        valor = recurso.extrair(dados)
+        if valor is None:
+            return
+
+        total = recurso.total_de_vistas(valor)
+        if total <= 1:
+            return
+
+        atual = self._selecao.get(recurso.nome)
+        if atual is None:
+            atual = recurso.vista(valor).indice
+        self._selecao[recurso.nome] = (atual + 1) % total
+
+        # Só redesenha o cartão clicado. Refazer o ciclo inteiro varreria os processos
+        # de novo se algum recurso estivesse em alerta — 300 ms de janela travada
+        # justamente quando a máquina está sob carga.
+        status = self._status_atual.get(recurso.nome)
+        if status is not None:
+            self._exibir(recurso, valor, status)
 
     def _criar_rodape(self) -> None:
         """Interruptor, botão de tema, uptime e a linha de aviso, nesta ordem visual.
@@ -182,6 +213,7 @@ class AplicativoMonitor(ctk.CTkFrame):
         self.after(self._INTERVALO_VERIFICACAO_MS, self._agendar_atualizacao)
 
     def _atualizar_cards(self, dados) -> None:
+        self._ultimos_dados = dados
         for recurso in RECURSOS:
             valor = recurso.extrair(dados)
             if valor is None:
@@ -193,7 +225,7 @@ class AplicativoMonitor(ctk.CTkFrame):
             status_bruto = recurso.classificar(valor)
             status = self._rastreadores[recurso.nome].atualizar(status_bruto)
             self._status_atual[recurso.nome] = status
-            self._cards[recurso.nome].atualizar(status, valor)
+            self._exibir(recurso, valor, status)
 
             programa, consumo = self._identificar_programa(recurso, status)
             self._notificadores[recurso.nome].processar(
@@ -203,6 +235,20 @@ class AplicativoMonitor(ctk.CTkFrame):
                 valor=consumo,
                 leitura=valor,
             )
+
+    def _exibir(self, recurso, valor, status: Status) -> None:
+        """Desenha o recorte selecionado, sem deixar a tela ultrapassar o que foi decidido.
+
+        A decisão (`status`) vem da leitura inteira e já passou pelo `RastreadorAlerta`.
+        O que o cartão mostra vem do recorte, limitado por ela: assim a janela de 5 s
+        vale para a tela também, e um recorte nunca aparece mais grave do que o app
+        confirmou.
+        """
+        vista = recurso.vista(valor, self._selecao.get(recurso.nome))
+        status_exibido = menos_grave(status, recurso.classificar(vista))
+        cartao = self._cards[recurso.nome]
+        cartao.atualizar(status_exibido, vista)
+        cartao.definir_clicavel(recurso.total_de_vistas(valor) > 1)
 
     def _identificar_programa(self, recurso, status: Status):
         """Varre só no momento do alerta, e só para quem tem programa associado."""

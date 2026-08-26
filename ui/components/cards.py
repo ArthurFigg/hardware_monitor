@@ -14,6 +14,7 @@ class CartaoRecurso(ctk.CTkFrame):
         descricao_fn: Callable[..., str],
         formatar_valor: Callable[[float], str] | None = None,
         linha_extra_fn: Callable[[object], str] | None = None,
+        ao_clicar: Callable[[], None] | None = None,
         **kwargs,
     ):
         super().__init__(master, corner_radius=12, **kwargs)
@@ -21,9 +22,12 @@ class CartaoRecurso(ctk.CTkFrame):
         self._descricao_fn = descricao_fn
         self._formatar_valor = formatar_valor or (lambda v: f"{v:.0f}%")
         self._linha_extra_fn = linha_extra_fn or (lambda _: "")
+        self._ao_clicar = ao_clicar
 
         self._criar_rotulos(titulo)
         self._organizar()
+        if self._ao_clicar is not None:
+            self._ligar_clique()
 
     def _criar_rotulos(self, titulo: str) -> None:
         self._semaforo = Semaforo(self, tamanho=32)
@@ -86,6 +90,42 @@ class CartaoRecurso(ctk.CTkFrame):
         else:
             self._label_descricao.grid_configure(pady=(2, 16))
             self._label_extra.grid_remove()
+
+    def _ligar_clique(self) -> None:
+        """Liga o clique no cartão e em tudo que está dentro dele.
+
+        O Tk não propaga clique de filho para o frame pai: sem ligar em cada rótulo,
+        clicar no número não faria nada e clicar na borda faria — que é pior que não
+        ter clique nenhum.
+        """
+        for widget in self._widgets():
+            widget.bind("<Button-1>", lambda _evento: self._ao_clicar())
+
+    def definir_clicavel(self, clicavel: bool) -> None:
+        """Mostra ou esconde a mãozinha do cursor.
+
+        Separado de ligar o clique porque só se sabe se há para onde ir depois de ler os
+        dados: um cartão de disco numa máquina com uma unidade só continua ligado, mas
+        não pode prometer com o cursor uma troca que não vai acontecer.
+        """
+        cursor = "hand2" if clicavel else ""
+        for widget in self._widgets():
+            widget.configure(cursor=cursor)
+
+    @property
+    def parece_clicavel(self) -> bool:
+        """Existe para o teste poder verificar o que o cursor está prometendo."""
+        return self.cget("cursor") == "hand2"
+
+    def _widgets(self):
+        return (self, *self._descendentes())
+
+    def _descendentes(self):
+        pendentes = list(self.winfo_children())
+        while pendentes:
+            widget = pendentes.pop()
+            pendentes.extend(widget.winfo_children())
+            yield widget
 
     def _organizar(self) -> None:
         self.grid_columnconfigure(1, weight=1)

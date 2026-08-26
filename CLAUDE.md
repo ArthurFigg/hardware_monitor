@@ -33,7 +33,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (246 testes, todos passando):
+Para rodar os testes (278 testes, todos passando):
 
 ```
 uv run pytest -v
@@ -72,15 +72,15 @@ hardware_monitor/
 │   ├── hardware/
 │   │   ├── test_collector.py   — 8 testes (mock psutil)
 │   │   ├── test_desempenho.py  — 11 testes (pdh mockado)
-│   │   ├── test_discos.py      — 24 testes (mock psutil e PowerShell)
+│   │   ├── test_discos.py      — 33 testes (mock psutil e PowerShell)
 │   │   ├── test_pdh.py         — 16 testes (pdh.dll mockada)
 │   │   ├── test_processos.py   — 8 testes (mock psutil)
 │   │   └── test_thresholds.py  — 46 testes (limites, textos, temperatura, disco,
 │   │                             calor, RastreadorAlerta)
 │   ├── ui/
 │   │   ├── conftest.py         — fixture raiz (CTk, session-scoped)
-│   │   ├── test_app.py         — 33 testes
-│   │   ├── test_cards.py       — 13 testes
+│   │   ├── test_app.py         — 51 testes
+│   │   ├── test_cards.py       — 18 testes
 │   │   └── test_semaphore.py   — 5 testes
 │   ├── notifications/
 │   │   └── test_manager.py     — 13 testes (mock plyer)
@@ -126,11 +126,26 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
   Unidade removível, de rede, de CD e qualquer uma com menos de 10 GB de tamanho total
   ficam de fora — este último filtro existe pela partição de recuperação do Windows
   (~500 MB, sempre quase cheia), que sem ele deixaria o app em Alerta permanente. O
-  cartão exibe a unidade que decidiu o status, nomeada: "D: — 100%". **A pior unidade
+  cartão **abre** exibindo a unidade que decidiu o status, nomeada e com um contador:
+  "D: — 100% (2/2)". **Clicar no cartão passa para a próxima unidade** e dá a volta no
+  fim; o contador some quando há uma unidade só, porque "(1/1)" não revelaria nada. **A pior unidade
   é a de pior status, não a de maior percentual** — as duas regras podem apontar para
   discos diferentes (um SSD de sistema com 8 GB livres está em Alerta pela regra de
   espaço e perde no percentual para um HD em 94% que está só em Atenção), e ordenar pelo
   percentual faria o semáforo acender por um disco e o rótulo nomear outro.
+- **O cartão de Disco é uma janela de visualização; as decisões vêm da leitura inteira.**
+  O clique troca o que aparece — número, cor e texto, sempre do mesmo disco —, mas a
+  notificação e o pior status continuam saindo da pior unidade. Sem essa separação,
+  selecionar um disco saudável desligaria o aviso do disco cheio e deixaria o ícone da
+  bandeja verde com um disco em alerta. Quando a unidade exibida não é a pior, a linha
+  extra do cartão diz qual está pior e que dá para clicar.
+- **O que o cartão exibe nunca passa do que o app confirmou** (`menos_grave`): assim a
+  janela de 5 s do `RastreadorAlerta` vale também para a tela, e um recorte não aparece
+  mais grave do que a decisão.
+- **Clique de cartão é ligado em cada parte dele, não só no frame.** O Tk não propaga
+  clique de filho para o pai — sem isso, clicar no número não faria nada e clicar na
+  borda faria. O CustomTkinter esconde de `winfo_children()` o canvas onde desenha, e é
+  nele que o `bind` acaba caindo: teste que só varre os filhos visíveis dá falso negativo.
 - **A saúde é do disco físico e nunca é mapeada em unidade.** Um disco com várias
   partições faria o mapeamento errar, então a linha extra nomeia o disco. É relida a cada
   6 horas: desgaste evolui em semanas, a consulta custa ~3 s (abre um PowerShell), e o app
@@ -253,6 +268,9 @@ Temperatura:
 - Estilo minimalista, sem bordas pesadas ou gráficos de linha
 - Suporte a Light Mode e Dark Mode com botão toggle
 - Valor numérico exibido em todos os cards: percentual (%) para CPU/RAM/Disco, temperatura estimada (~°C) para Temperatura
+- **Cartão que troca de conteúdo por clique mostra a mãozinha do cursor, e só quando há
+  para onde ir.** Cursor de mão em cartão que não faz nada é promessa que a tela não
+  cumpre — vale para o Disco numa máquina com uma unidade só.
 - **Rodapé:** interruptor "Abrir junto com o Windows" à esquerda, botão de tema à direita, e
   abaixo a linha discreta de uptime da máquina ("Ligado há 5h 23min") — sem cor e sem
   semáforo, porque não existe uptime em alerta. Atualiza de minuto em minuto.
@@ -264,7 +282,7 @@ A lista solta que existia aqui foi substituída pela triagem de 25/08/2026. Não
 
 As 7 specs aprovadas, na ordem:
 1. ~~Notificações que dizem qual recurso e qual programa~~ — **concluída em 2026-08-26**
-2. ~~Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos~~ — **concluída em 2026-08-26**
+2. ~~Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos~~ — **concluída em 2026-08-26**, revisada no mesmo dia para trocar de unidade por clique
 3. ~~Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)~~ — **concluída em 2026-08-26**
 4. ~~Abrir com o Windows e uptime no rodapé~~ — **concluída em 2026-08-26**
 5. Ícone na bandeja, com minimizar para lá

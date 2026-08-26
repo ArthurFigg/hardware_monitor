@@ -49,6 +49,7 @@ class Recurso:
         default_factory=dict
     )
     causa_fn: Callable[[object], str] | None = None
+    vista_fn: Callable[[object, object], object] | None = None
     linha_extra_fn: Callable[[object], str] | None = None
     detalhe_fn: Callable[[object], str] | None = None
     causa_padrao: str = CAUSA_PADRAO
@@ -74,6 +75,20 @@ class Recurso:
         causa; aqui ela é derivada do valor, que é o que a tela tem em mãos.
         """
         return self.descricao(status, self.causa(valor))
+
+    def vista(self, valor, indice=None):
+        """O recorte do valor que o cartão exibe. Quem não declara vista exibe o todo.
+
+        Existe para separar o que a tela mostra do que o app decide: o cartão de Disco
+        alterna de unidade por clique, mas a notificação e o pior status continuam vindo
+        da leitura inteira.
+        """
+        if self.vista_fn is None:
+            return valor
+        return self.vista_fn(valor, indice)
+
+    def total_de_vistas(self, valor) -> int:
+        return getattr(self.vista(valor), "total", 1)
 
     def causa(self, valor=None) -> str:
         """Qual variante de texto vale para esta leitura.
@@ -183,27 +198,45 @@ RAM = Recurso(
 )
 
 _LINHA_DESGASTE = "O disco {disco} está dando sinais de desgaste."
+_LINHA_OUTRO_PIOR = "A unidade {ponto} está em situação pior. Clique para ver."
 _DESGASTE = (
     "Disco com sinais de desgaste. Faça uma cópia dos seus arquivos importantes."
 )
 
 
 def _valor_disco(leitura) -> str:
-    """Percentual da unidade que decidiu o status, com o nome dela.
+    """Percentual da unidade exibida, com o nome dela e o contador de unidades.
 
     Sem nenhuma unidade — todas filtradas — o cartão não exibe número nenhum. Vazio é
     melhor que "0%", que seria mentira sobre um disco que o app não está olhando.
+
+    O contador só aparece com mais de uma unidade: é ele que revela que dá para clicar,
+    e "(1/1)" não revelaria nada além de ruído.
     """
     unidade = getattr(leitura, "pior_unidade", None)
     if unidade is None:
         return ""
-    return f"{unidade.ponto} — {unidade.percentual:.0f}%"
+
+    texto = f"{unidade.ponto} — {unidade.percentual:.0f}%"
+    total = getattr(leitura, "total", 1)
+    if total > 1:
+        texto += f" ({getattr(leitura, 'indice', 0) + 1}/{total})"
+    return texto
 
 
 def _linha_desgaste(leitura) -> str:
-    if not getattr(leitura, "disco_desgastado", None):
+    """Desgaste manda; sem ele, avisa quando há unidade pior fora da tela.
+
+    Um clique não pode esconder um alerta atrás de um cartão verde sem deixar rastro. A
+    linha diz qual unidade está pior e que dá para clicar — mais útil que só destacar o
+    contador, e sem inventar cor nova no componente.
+    """
+    if getattr(leitura, "disco_desgastado", None):
+        return _LINHA_DESGASTE.format(disco=leitura.disco_desgastado)
+
+    if getattr(leitura, "exibe_pior", True):
         return ""
-    return _LINHA_DESGASTE.format(disco=leitura.disco_desgastado)
+    return _LINHA_OUTRO_PIOR.format(ponto=leitura.pior_ponto)
 
 
 def _detalhe_disco(leitura) -> str:
@@ -226,6 +259,7 @@ DISCO = Recurso(
     ),
     linha_extra_fn=_linha_desgaste,
     detalhe_fn=_detalhe_disco,
+    vista_fn=lambda leitura, indice: leitura.vista(indice),
     causa_padrao=CAUSA_ESPACO,
     descricoes={
         Status.NORMAL: {

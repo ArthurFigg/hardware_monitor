@@ -170,4 +170,38 @@ percentual ocupado e espaço livre, e avisar quando um disco físico dá sinais 
 
 
 ---
-**Status:** concluida em 2026-08-26
+**Revisao 1** — 2026-08-26
+
+**O que muda:** o cartão de Disco passa a alternar de unidade por clique, em vez de exibir
+apenas a pior. Cada clique avança para a próxima unidade fixa e volta ao início ao chegar no
+fim.
+
+- O cartão reflete **inteiramente** a unidade selecionada: número, cor do semáforo e texto
+  falam todos do mesmo disco. A luz nunca descreve um disco e o número outro.
+- O valor ganha um contador — `D: — 100% (2/2)` — para a pessoa descobrir que dá para
+  clicar. Com uma unidade só, o contador não aparece: `(1/1)` seria ruído.
+- Quando a unidade exibida **não** é a pior, a linha extra do cartão diz qual está pior e
+  que dá para clicar: "A unidade D: está em situação pior. Clique para ver." Sem isso, um
+  clique esconderia um alerta atrás de um cartão verde e nada na tela lembraria dele.
+  Escolhida no lugar de destacar o contador com cor: cor exigiria API nova no
+  `CartaoRecurso` e não diria qual unidade está pior nem que o cartão é clicável. O aviso
+  de desgaste mantém precedência sobre esta linha.
+- **A notificação e o pior status continuam presos à pior unidade, nunca à selecionada.**
+  Esta é a parte que não é preferência: hoje o cartão do Disco é a fonte do status que o
+  `GerenciadorNotificacoes` consome e que a bandeja (spec 5) vai consumir. Se o clique
+  mudasse essa fonte, selecionar um disco saudável desligaria a notificação do disco cheio e
+  deixaria o ícone da bandeja verde com um disco em alerta. O cartão passa a ser uma
+  **janela de visualização** sobre as unidades; as decisões seguem vindo da pior.
+- Unidade que some com o app aberto (disco desconectado) não pode deixar a seleção apontando
+  para o vazio: a seleção volta para a pior.
+
+**Motivo:** revelado ao rodar o app com os discos reais desta máquina, na verificação visual
+da spec 4. A máquina tem duas unidades fixas — C: em 77,7% com 207 GB livres (Normal) e D: em
+99,6% com 0,5 GB livres (Alerta) — e o cartão exibia só o D:. O comportamento estava correto
+pela spec original ("mostra a unidade pior e diz qual é"), mas na prática o app parece vigiar
+um disco só: o C: entra na conta do status e nunca aparece. A alternativa de listar todas as
+unidades num cartão só foi descartada porque um cartão tem um semáforo, e dois números sob uma
+luz só fazem a luz mentir sobre um deles.
+
+---
+**Status:** concluida em 2026-08-26 (revisao 1)

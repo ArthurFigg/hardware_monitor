@@ -215,7 +215,7 @@ def test_cartao_exibe_a_unidade_que_decidiu_o_status(_, raiz):
         )
     )
     app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=leitura))
-    assert app._cards["disco"]._label_percentual.cget("text") == "C: — 93%"
+    assert app._cards["disco"]._label_percentual.cget("text") == "C: — 93% (1/2)"
 
 
 def _dados_quentes(velocidade, reduzindo=False):
@@ -466,3 +466,187 @@ def test_remocao_que_passa_nao_deixa_aviso(_, raiz):
     with patch.object(ui.app.inicializacao, "desativar", return_value=True):
         app._alternar_inicio()
     assert app.aviso_inicio == ""
+
+
+def _dois_discos():
+    """C: em Normal com folga, D: em Alerta — os dois discos reais desta máquina."""
+    return LeituraDisco(
+        unidades=(
+            Unidade(ponto="C:", percentual=77.7, livre_gb=207.0),
+            Unidade(ponto="D:", percentual=99.6, livre_gb=0.5),
+        )
+    )
+
+
+def _app_com_dois_discos(raiz):
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_dois_discos()))
+    return app
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_cartao_abre_mostrando_a_pior_unidade(_, raiz):
+    app = _app_com_dois_discos(raiz)
+    assert app._cards["disco"]._label_percentual.cget("text") == "D: — 100% (2/2)"
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_clique_troca_para_a_outra_unidade(_, raiz):
+    app = _app_com_dois_discos(raiz)
+    app._avancar_selecao(recursos.DISCO)
+    assert app._cards["disco"]._label_percentual.cget("text") == "C: — 78% (1/2)"
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_clique_da_a_volta_e_retorna_a_primeira(_, raiz):
+    app = _app_com_dois_discos(raiz)
+    app._avancar_selecao(recursos.DISCO)
+    app._avancar_selecao(recursos.DISCO)
+    assert app._cards["disco"]._label_percentual.cget("text") == "D: — 100% (2/2)"
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_cartao_acompanha_a_unidade_exibida(_, raiz):
+    """Cor e número falam do mesmo disco — a luz nunca descreve um e o número outro."""
+    app = _app_com_dois_discos(raiz)
+    app._avancar_selecao(recursos.DISCO)
+    assert app._cards["disco"].status_atual == Status.NORMAL
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_texto_acompanha_a_unidade_exibida(_, raiz):
+    app = _app_com_dois_discos(raiz)
+    app._avancar_selecao(recursos.DISCO)
+    assert "suficiente" in app._cards["disco"]._label_descricao.cget("text")
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_clique_nao_esconde_que_ha_unidade_pior(_, raiz):
+    """Sem isso, um clique enterraria um alerta atrás de um cartão verde."""
+    app = _app_com_dois_discos(raiz)
+    app._avancar_selecao(recursos.DISCO)
+    assert "D:" in app._cards["disco"].linha_extra
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_exibindo_a_pior_nao_ha_linha_de_aviso(_, raiz):
+    app = _app_com_dois_discos(raiz)
+    assert app._cards["disco"].linha_extra == ""
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_pior_status_ignora_a_unidade_selecionada(_, raiz):
+    """O clique não pode deixar a bandeja verde com um disco em alerta."""
+    app = _app_com_dois_discos(raiz)
+    app._rastreadores["disco"] = MagicMock(
+        atualizar=MagicMock(side_effect=lambda status: status)
+    )
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_dois_discos()))
+    app._avancar_selecao(recursos.DISCO)
+    assert app._status_atual["disco"] == Status.ALERTA
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_notificacao_segue_a_pior_unidade_e_nao_a_selecionada(_, raiz):
+    """Selecionar um disco saudável não pode desligar o aviso do disco cheio."""
+    app = _app_com_dois_discos(raiz)
+    app._rastreadores["disco"] = MagicMock(
+        atualizar=MagicMock(side_effect=lambda status: status)
+    )
+    app._notificadores["disco"] = MagicMock()
+    app._selecao["disco"] = 0
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_dois_discos()))
+    assert app._notificadores["disco"].processar.call_args.args[0] == Status.ALERTA
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_com_um_disco_so_o_clique_nao_faz_nada(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+    antes = app._cards["disco"]._label_percentual.cget("text")
+    app._avancar_selecao(recursos.DISCO)
+    assert app._cards["disco"]._label_percentual.cget("text") == antes
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_com_um_disco_so_nao_ha_contador(_, raiz):
+    """ "(1/1)" não revelaria nada além de ruído."""
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+    assert "(" not in app._cards["disco"]._label_percentual.cget("text")
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_unidade_que_some_devolve_a_selecao_para_a_pior(_, raiz):
+    """Disco desconectado com o app aberto não pode deixar a seleção no vazio."""
+    app = _app_com_dois_discos(raiz)
+    app._avancar_selecao(recursos.DISCO)
+    app._selecao["disco"] = 1
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+    assert app._cards["disco"]._label_percentual.cget("text") == "C: — 30%"
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_desgaste_tem_precedencia_sobre_o_aviso_de_unidade_pior(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    leitura = LeituraDisco(
+        unidades=_dois_discos().unidades, disco_desgastado="CT120BX500SSD1"
+    )
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=leitura))
+    app._avancar_selecao(recursos.DISCO)
+    assert "desgaste" in app._cards["disco"].linha_extra
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_cartoes_sem_recorte_nao_prometem_clique(_, raiz):
+    """Mãozinha em cartão que não troca de nada é promessa que a tela não cumpre."""
+    app = _app_com_dois_discos(raiz)
+    assert not any(
+        app._cards[nome].parece_clicavel for nome in ("cpu", "ram", "temperatura")
+    )
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_cartao_de_disco_com_duas_unidades_promete_clique(_, raiz):
+    app = _app_com_dois_discos(raiz)
+    assert app._cards["disco"].parece_clicavel
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_cartao_de_disco_com_uma_unidade_nao_promete_clique(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+    assert not app._cards["disco"].parece_clicavel
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_clique_nao_varre_processos(_, raiz):
+    """Varrer custa 300 ms na thread da interface — clique não pode pagar isso."""
+    app = _app_com_dois_discos(raiz)
+    app._status_atual["cpu"] = Status.ALERTA
+    with patch("ui.app.programa_dominante") as varredura:
+        app._avancar_selecao(recursos.DISCO)
+        varredura.assert_not_called()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_clique_nao_redispara_notificacao(_, raiz):
+    app = _app_com_dois_discos(raiz)
+    app._notificadores["disco"] = MagicMock()
+    app._avancar_selecao(recursos.DISCO)
+    app._notificadores["disco"].processar.assert_not_called()

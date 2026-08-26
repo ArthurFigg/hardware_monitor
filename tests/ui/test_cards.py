@@ -108,3 +108,56 @@ def test_cartao_volta_a_esconder_a_linha_extra(raiz):
     cartao.atualizar(Status.NORMAL, 30.0)
     raiz.update_idletasks()
     assert not cartao._label_extra.winfo_manager()
+
+
+def test_cartao_sem_ao_clicar_nao_tem_cursor_de_mao(raiz):
+    cartao = CartaoRecurso(raiz, titulo="CPU", descricao_fn=CPU.descricao_de)
+    assert not cartao.parece_clicavel
+
+
+def _recebe_clique(widget) -> bool:
+    """Se um clique nesse widget chega ao cartão.
+
+    O CustomTkinter esconde de `winfo_children()` o canvas onde de fato desenha, e é
+    nele que o `bind` acaba caindo — olhar só os filhos visíveis dá falso negativo.
+    """
+    if "<Button-1>" in (widget.bind() or ()):
+        return True
+    canvas = getattr(widget, "_canvas", None)
+    return canvas is not None and "<Button-1>" in (canvas.bind() or ())
+
+
+def test_cartao_clicavel_liga_o_clique_em_cada_parte(raiz):
+    """O Tk não propaga clique de filho para o frame pai.
+
+    Verificado pelo binding e não por `event_generate`: o Tk não entrega evento
+    sintético em janela que nunca foi exibida, e nos testes a raiz nunca é. Sem ligar em
+    cada parte, clicar no número não faria nada e clicar na borda faria — pior que não
+    ter clique.
+    """
+    cartao = CartaoRecurso(
+        raiz, titulo="Disco", descricao_fn=CPU.descricao_de, ao_clicar=lambda: None
+    )
+    assert all(_recebe_clique(w) for w in (cartao, *cartao.winfo_children()))
+
+
+def test_cartao_sem_ao_clicar_nao_liga_clique_nenhum(raiz):
+    cartao = CartaoRecurso(raiz, titulo="CPU", descricao_fn=CPU.descricao_de)
+    assert not any(_recebe_clique(w) for w in (cartao, *cartao.winfo_children()))
+
+
+def test_definir_clicavel_liga_a_maozinha(raiz):
+    cartao = CartaoRecurso(
+        raiz, titulo="Disco", descricao_fn=CPU.descricao_de, ao_clicar=lambda: None
+    )
+    cartao.definir_clicavel(True)
+    assert cartao.parece_clicavel
+
+
+def test_definir_clicavel_desliga_a_maozinha(raiz):
+    cartao = CartaoRecurso(
+        raiz, titulo="Disco", descricao_fn=CPU.descricao_de, ao_clicar=lambda: None
+    )
+    cartao.definir_clicavel(True)
+    cartao.definir_clicavel(False)
+    assert not cartao.parece_clicavel

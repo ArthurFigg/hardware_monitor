@@ -196,3 +196,19 @@ máquina escrito à mão.
 máquina de quem escreveu e em nenhuma outra, e o erro só aparece no computador de terceiros.
 **Custo aceito:** o código carrega os dois ramos e um deles nunca roda em desenvolvimento,
 então precisa de teste próprio para não apodrecer sem ninguém notar.
+
+
+## O que a tela mostra e o que o app decide são coisas separadas
+
+**Contexto:** um cartão que deixa a pessoa escolher qual fatia dos dados olhar — um disco
+entre vários, um núcleo entre vários — é útil. Mas o mesmo cartão costuma ser a fonte do
+estado que outras partes consomem: a notificação, o ícone de bandeja, o resumo.
+**Decisão:** a decisão sai sempre da leitura inteira; o que a tela exibe é um recorte dela,
+escolhido por quem olha. O recorte também não pode aparecer mais grave do que a decisão já
+confirmada, para que janelas de confirmação por tempo valham para a tela também. E quando o
+recorte exibido esconde algo pior, o cartão diz o que está escondido e como chegar lá.
+**Descartado:** deixar o cartão ser a fonte do estado. É o caminho curto e cria um defeito
+silencioso: escolher a fatia saudável desliga o aviso da fatia problemática, e nada na tela
+denuncia isso.
+**Custo aceito:** dois status por cartão em vez de um — o que foi decidido e o que está
+sendo mostrado —, e o código precisa deixar claro em cada ponto qual dos dois está em jogo.

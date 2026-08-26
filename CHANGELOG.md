@@ -11,7 +11,9 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Aviso quando um disco começa a dar sinais de desgaste, com o nome do disco — o caso
   em que apagar arquivo não resolve e o que vale é fazer cópia dos arquivos
 - O cartão de Disco passou a olhar todas as unidades fixas do computador, e não só a
-  do sistema; unidades removíveis, de rede e a partição de recuperação ficam de fora
+  do sistema; unidades removíveis, de rede e a partição de recuperação ficam de fora.
+  Ele abre no disco em pior situação e **troca de disco a cada clique**, avisando quando
+  o disco que está fora da tela é o que precisa de atenção
 - O cartão de Temperatura avisa quando o processador diminui a própria velocidade para
   não esquentar — sem mudar de cor nem notificar, porque não há o que fazer a respeito
 - Interruptor para abrir o app junto com o Windows, já minimizado e sem roubar a tela no

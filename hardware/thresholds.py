@@ -100,6 +100,12 @@ class ConfirmadorSustentado:
         return (agora - self._inicio) >= self._atraso
 
 
+def menos_grave(a: Status, b: Status) -> Status:
+    """O menos grave dos dois. Usado para o que o cartão exibe nunca passar do que o
+    app já confirmou — a janela de 5 s vale para a tela também."""
+    return min((a, b), key=gravidade)
+
+
 def gravidade(status: Status) -> int:
     """Quanto o status pesa. Existe para ordenar, não só para comparar dois."""
     return _GRAVIDADE[status]

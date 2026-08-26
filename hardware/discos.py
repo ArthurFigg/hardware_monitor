@@ -48,6 +48,26 @@ class Unidade:
 
 
 @dataclass(frozen=True)
+class VistaDisco:
+    """Uma unidade só, do jeito que o cartão a exibe agora.
+
+    Tem `unidades` e `disco_desgastado` como a leitura completa, de propósito: assim
+    `classificar_disco()` e os textos funcionam nela sem saber que é uma vista.
+    """
+
+    unidades: tuple[Unidade, ...]
+    disco_desgastado: str | None
+    indice: int
+    total: int
+    exibe_pior: bool
+    pior_ponto: str | None
+
+    @property
+    def pior_unidade(self) -> Unidade | None:
+        return self.unidades[0] if self.unidades else None
+
+
+@dataclass(frozen=True)
 class LeituraDisco:
     """Tudo que o cartão do Disco precisa saber, numa leitura só.
 
@@ -71,6 +91,29 @@ class LeituraDisco:
         if not self.unidades:
             return None
         return max(self.unidades, key=_ranking)
+
+    def vista(self, indice: int | None = None) -> VistaDisco:
+        """A unidade que o cartão mostra agora. `None` significa "a pior".
+
+        Índice fora da faixa volta para a pior em vez de quebrar: uma unidade pode
+        desaparecer com o app aberto, e a seleção não pode ficar apontando para o vazio.
+        """
+        if not self.unidades:
+            return VistaDisco((), self.disco_desgastado, 0, 0, True, None)
+
+        pior = self.pior_unidade
+        ordem = list(self.unidades)
+        if indice is None or not (0 <= indice < len(ordem)):
+            indice = ordem.index(pior)
+
+        return VistaDisco(
+            unidades=(ordem[indice],),
+            disco_desgastado=self.disco_desgastado,
+            indice=indice,
+            total=len(ordem),
+            exibe_pior=ordem[indice] == pior,
+            pior_ponto=pior.ponto,
+        )
 
 
 def _ranking(unidade: Unidade) -> tuple[int, float, float]:

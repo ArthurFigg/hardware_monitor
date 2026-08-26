@@ -208,3 +208,53 @@ def test_pior_unidade_desempata_pelo_percentual_dentro_do_mesmo_status():
         )
     )
     assert leitura.pior_unidade.ponto == "D:"
+
+
+def _duas_unidades():
+    return LeituraDisco(
+        unidades=(
+            Unidade(ponto="C:", percentual=77.7, livre_gb=207.0),
+            Unidade(ponto="D:", percentual=99.6, livre_gb=0.5),
+        )
+    )
+
+
+def test_vista_sem_indice_mostra_a_pior():
+    assert _duas_unidades().vista().pior_unidade.ponto == "D:"
+
+
+def test_vista_por_indice_mostra_a_unidade_pedida():
+    assert _duas_unidades().vista(0).pior_unidade.ponto == "C:"
+
+
+def test_vista_conta_o_total_de_unidades():
+    assert _duas_unidades().vista(0).total == 2
+
+
+def test_vista_sabe_quando_nao_exibe_a_pior():
+    assert not _duas_unidades().vista(0).exibe_pior
+
+
+def test_vista_da_pior_se_reconhece_como_tal():
+    assert _duas_unidades().vista(1).exibe_pior
+
+
+def test_vista_nomeia_a_pior_mesmo_exibindo_outra():
+    assert _duas_unidades().vista(0).pior_ponto == "D:"
+
+
+def test_indice_fora_da_faixa_volta_para_a_pior():
+    """Disco desconectado com o app aberto deixaria o índice apontando para o vazio."""
+    assert _duas_unidades().vista(9).pior_unidade.ponto == "D:"
+
+
+def test_vista_preserva_o_desgaste():
+    """Desgaste é do disco físico e vale em qualquer unidade exibida."""
+    leitura = LeituraDisco(
+        unidades=_duas_unidades().unidades, disco_desgastado="CT120BX500SSD1"
+    )
+    assert leitura.vista(0).disco_desgastado == "CT120BX500SSD1"
+
+
+def test_vista_sem_unidades_nao_quebra():
+    assert LeituraDisco().vista().pior_unidade is None
