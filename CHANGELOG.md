@@ -12,6 +12,8 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   em que apagar arquivo não resolve e o que vale é fazer cópia dos arquivos
 - O cartão de Disco passou a olhar todas as unidades fixas do computador, e não só a
   do sistema; unidades removíveis, de rede e a partição de recuperação ficam de fora
+- O cartão de Temperatura avisa quando o processador diminui a própria velocidade para
+  não esquentar — sem mudar de cor nem notificar, porque não há o que fazer a respeito
 
 ### Modificado
 - O alerta de disco cheio passou a considerar também quanto espaço sobrou, e não só o
@@ -23,6 +25,8 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   aplicativos; agora fala de temperatura e manda verificar a ventilação
 - O cartão de Disco parou de sugerir fechar programas para resolver falta de espaço,
   e passou a ter textos próprios
+- O cartão de Temperatura acendia amarelo antes do de CPU, dando impressão de máquina
+  esquentando sem motivo; agora os dois avisam no mesmo ponto de carga
 
 ## [1.0.0] — 2026-08-25
 

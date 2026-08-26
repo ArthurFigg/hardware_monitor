@@ -22,9 +22,9 @@ A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 
 - `ideias.txt` — histórico completo, incluindo o que foi recusado e por quê
 
 A triagem falava em 6 specs; o `/spec` gerou **7** — a fila real está em `.claude/specs/`.
-As specs 1 (notificações por recurso) e 2 (medição de disco) foram concluídas em
-26/08/2026. As 5 restantes estão aprovadas pelo `/spec-review` e pendentes, na ordem
-03 → 07. A próxima é a **03 — redução de velocidade por calor**.
+As specs 1 (notificações por recurso), 2 (medição de disco) e 3 (redução de velocidade por
+calor) foram concluídas em 26/08/2026. As 4 restantes estão aprovadas pelo `/spec-review` e
+pendentes, na ordem 04 → 07. A próxima é a **04 — abrir com o Windows e rodapé**.
 
 Para rodar:
 
@@ -32,7 +32,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (150 testes, todos passando):
+Para rodar os testes (198 testes, todos passando):
 
 ```
 uv run pytest -v
@@ -48,6 +48,9 @@ hardware_monitor/
 │   ├── processos.py      — varredura sob demanda: quem está consumindo CPU/RAM
 │   ├── discos.py         — unidades fixas (filtros de removível/rede/CD e de <10 GB) +
 │                           saúde dos discos físicos via Get-PhysicalDisk, com cache de 6h
+│   ├── pdh.py            — contadores de desempenho do Windows via ctypes; nome resolvido
+│                           por índice, com queda para o inglês. A spec 6 importa sem editar
+│   ├── desempenho.py     — % Processor Performance + LeituraTemperatura e a regra de calor
 │   └── thresholds.py     — Status enum, classificar(), classificar_temperatura(),
 │                           estimar_temperatura(), descricao(), descricao_temperatura(),
 │                           classificar_unidade(), classificar_disco(), mais_grave(),
@@ -66,14 +69,16 @@ hardware_monitor/
 │   └── manager.py        — GerenciadorNotificacoes: dispara notificação uma vez por período de alerta
 ├── tests/
 │   ├── hardware/
-│   │   ├── test_collector.py   — 4 testes (mock psutil)
+│   │   ├── test_collector.py   — 6 testes (mock psutil)
+│   │   ├── test_desempenho.py  — 11 testes (pdh mockado)
 │   │   ├── test_discos.py      — 24 testes (mock psutil e PowerShell)
+│   │   ├── test_pdh.py         — 16 testes (pdh.dll mockada)
 │   │   ├── test_processos.py   — 8 testes (mock psutil)
-│   │   └── test_thresholds.py  — 34 testes (limites, textos, temperatura, disco,
-│   │                             RastreadorAlerta)
+│   │   └── test_thresholds.py  — 46 testes (limites, textos, temperatura, disco,
+│   │                             calor, RastreadorAlerta)
 │   ├── ui/
 │   │   ├── conftest.py         — fixture raiz (CTk, session-scoped)
-│   │   ├── test_app.py         — 16 testes
+│   │   ├── test_app.py         — 22 testes
 │   │   ├── test_cards.py       — 13 testes
 │   │   └── test_semaphore.py   — 5 testes
 │   ├── notifications/
@@ -123,6 +128,21 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
 - **Consulta de saúde que falha devolve `None`, e `None` não é "todos saudáveis".** Tupla
   vazia é informação ("consultei, está tudo bem"); `None` é ausência dela. Os dois escondem
   a linha, mas só o segundo poderia virar alerta falso se fossem confundidos.
+- **A velocidade real do processador vem de uma consulta PDH persistente**, aberta uma
+  vez e reaproveitada, com o nome do contador resolvido pelo **número** (`Processor
+  Information` = 2610, `% Processor Performance` = 2660). Confirmado nesta máquina: o nome
+  devolvido é "% de Desempenho do Processador" — o nome em inglês não existe aqui, então
+  resolver por índice não é preciosismo, é o que faz o contador abrir.
+- **`psutil.cpu_freq()` não serve no Windows** e não deve ser tentado: devolve 3701 MHz
+  fixo nesta máquina, parado ou sob carga, porque lê a frequência nominal do registro e não
+  o clock real.
+- **A primeira leitura de um contador PDH é sempre descartada.** Um contador de taxa calcula
+  a diferença entre duas amostras, e a amostra de abertura fica a microssegundos da primeira
+  leitura: o valor sai sem sentido (medido: 43% num processador que estava em 107%). Não dá
+  para distinguir isso de uma queda real.
+- **A janela de 5 s do aviso de calor avança dentro do `coletar()`, e só ali.** É o único
+  ponto que roda uma vez por ciclo. Se o relógio andasse em quem lê os dados, cada consumidor
+  novo (a bandeja da spec 5) o encurtaria pela metade sem que ninguém percebesse.
 - **`Recurso` ganhou `causa_fn`, `linha_extra_fn`, `detalhe_fn` e `descricao_de()`** — o
   Disco é o único que os usa hoje. Sem eles, a variante de texto de desgaste que a spec 1
   escreveu era código morto: não havia caminho que a acionasse. O cartão chama
@@ -141,11 +161,20 @@ Fronteiras são inclusivas no limite inferior (`>=`), como o código faz — 60,
 - Temperatura Atenção: de 65°C a 79,9°C
 - Temperatura Alerta: 80°C ou mais, por mais de 5 segundos
 
-**Temperatura Atenção mudou de 60°C para 65°C em 25/08/2026** — este é o aviso exigido acima. Motivo: a temperatura é derivada do % de CPU (`estimar_temperatura`), então cada temperatura corresponde a um percentual exato. Com 60°C, o card de Temperatura acendia em CPU 50% — **antes** do card de CPU, que acende em 60%. Toda carga entre 50% e 59% mostrava amarelo na Temperatura com a CPU em verde, o que parece máquina esquentando sem motivo e corrói a confiança no semáforo. 65°C corresponde exatamente a CPU 60%: os dois acendem juntos.
+**Temperatura Atenção mudou de 60°C para 65°C — implementado na spec 3 em 26/08/2026.** Motivo: a temperatura é derivada do % de CPU (`estimar_temperatura`), então cada temperatura corresponde a um percentual exato. Com 60°C, o card de Temperatura acendia em CPU 50% — **antes** do card de CPU, que acende em 60%. Toda carga entre 50% e 59% mostrava amarelo na Temperatura com a CPU em verde, o que parece máquina esquentando sem motivo e corrói a confiança no semáforo. 65°C corresponde exatamente a CPU 60%: os dois acendem juntos.
 
 O Alerta continua em 80°C (CPU 90%) de propósito, com a CPU ficando vermelha antes, em 85%. Temperatura **atrasada** em relação à carga é fisicamente correto — calor demora a subir. O defeito era a temperatura adiantada.
 
-**A implementar na spec 3** (`LIMITE_TEMP_ATENCAO` em `thresholds.py`, mais os testes de limite em `test_thresholds.py`). Esta skill não altera código.
+**Em vigor desde 26/08/2026.** Conferido ponto a ponto na máquina: CPU 59% deixa os dois
+cartões em Normal, CPU 60% acende os dois em Atenção juntos, e o Alerta segue desalinhado de
+propósito (CPU vermelha em 85%, temperatura só em 90%).
+
+**Aviso de redução de velocidade por calor:** aparece quando a carga fica em **85% ou mais** e
+a velocidade do processador **abaixo de 90%**, as duas juntas, por 5 segundos contínuos. Não
+muda o status nem dispara notificação — é linha extra no cartão de Temperatura. As duas
+condições são obrigatórias porque o contador também cai com o PC ocioso, e ali a queda é
+economia de energia. O 90% é fundamentado e não medido (não dá para provocar superaquecimento
+real): é o primeiro número a ajustar se o aviso nunca aparecer ou aparecer demais.
 
 **Disco — implementado na spec 2 em 26/08/2026.** Tem limiares próprios, e dois de cada
 tipo. Cada unidade é classificada pelo **pior dos dois critérios**, o que acontecer primeiro:
@@ -217,7 +246,7 @@ A lista solta que existia aqui foi substituída pela triagem de 25/08/2026. Não
 As 7 specs aprovadas, na ordem:
 1. ~~Notificações que dizem qual recurso e qual programa~~ — **concluída em 2026-08-26**
 2. ~~Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos~~ — **concluída em 2026-08-26**
-3. Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)
+3. ~~Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)~~ — **concluída em 2026-08-26**
 4. Abrir com o Windows e uptime no rodapé
 5. Ícone na bandeja, com minimizar para lá
 6. Cartão de placa de vídeo com uso real (usa o mecanismo da spec 3)
@@ -370,8 +399,15 @@ todas devem ser resolvidas na etapa de setup, antes da primeira spec.
 - ~~Dependências sem teto de versão~~ → **resolvido em 26/08/2026**: as três de produção e as
   duas de desenvolvimento têm teto.
 
-Verificado e limpo: nenhum `print()`, nenhum `except`, nenhum `import *`, nenhum uso de
-async.
+- **`ConfirmadorSustentado` e `RastreadorAlerta` implementam a mesma janela de tempo**, um
+  sobre `bool` e outro sobre `Status`. Duplicação consciente: unificar é mexer em código de
+  outra spec que funciona, e a regra do projeto manda perguntar antes de refatorar.
+- **Três funções em `hardware/pdh.py` passam de 20 linhas** (`_abrir` 30, `ler` 23,
+  `__init__` 22). Ficam assim porque a spec 6 importa `pdh.py` **sem editar**, e quebrar as
+  funções agora mudaria a superfície que ela vai consumir.
+
+Verificado e limpo: nenhum `print()`, nenhum `except Exception`, nenhum `import *`, nenhum
+uso de async.
 
 ## Testes — o que precisa estar coberto
 Regra: **lógica coberta, fronteira mockada.**

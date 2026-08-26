@@ -4,8 +4,21 @@ from enum import Enum
 LIMITE_ATENCAO = 60.0
 LIMITE_ALERTA = 85.0
 
-LIMITE_TEMP_ATENCAO = 60.0
+# 65°C corresponde exatamente a CPU 60%, o mesmo ponto em que o cartão de CPU acende.
+# Com 60°C a temperatura acendia em CPU 50% — antes da CPU —, e toda carga entre 50% e
+# 59% mostrava amarelo na Temperatura com a CPU em verde. O Alerta continua em 80°C
+# (CPU 90%) de propósito: calor demora a subir, então temperatura atrasada em relação à
+# carga é fisicamente correto. O defeito era estar adiantada.
+LIMITE_TEMP_ATENCAO = 65.0
 LIMITE_TEMP_ALERTA = 80.0
+
+# Carga alta com velocidade baixa é o processador se protegendo do calor. As duas juntas
+# são obrigatórias: o contador também cai com o PC ocioso, e ali a queda é economia de
+# energia, não calor. O 90% é fundamentado e não medido — não dá para provocar
+# superaquecimento real —, então é o primeiro número a ajustar se o aviso nunca aparecer
+# ou aparecer demais.
+LIMITE_CARGA_REDUCAO = 85.0
+LIMITE_VELOCIDADE_REDUCAO = 90.0
 
 # O disco tem limites próprios, e dois de cada tipo. Percentual sozinho avisa tarde no
 # disco pequeno (95% de 120 GB deixa 6 GB, e o Windows já não atualiza com isso) e cedo
@@ -56,6 +69,35 @@ def classificar_disco(leitura) -> Status:
     return mais_grave(
         classificar_unidade(u.percentual, u.livre_gb) for u in leitura.unidades
     )
+
+
+def reduzindo_por_calor(cpu: float, velocidade: float | None) -> bool:
+    """Carga alta e processador freado ao mesmo tempo. Sem velocidade, não se afirma nada."""
+    if velocidade is None:
+        return False
+    return cpu >= LIMITE_CARGA_REDUCAO and velocidade < LIMITE_VELOCIDADE_REDUCAO
+
+
+class ConfirmadorSustentado:
+    """Só confirma uma condição depois dela se manter pelo tempo mínimo.
+
+    Mesma ideia do `RastreadorAlerta`, mas sobre um booleano em vez de um `Status` — ele
+    continua como está porque é de outra spec e funciona; unificar os dois é refatoração
+    a combinar, não efeito colateral desta.
+    """
+
+    def __init__(self, atraso: float = 5.0):
+        self._atraso = atraso
+        self._inicio: float | None = None
+
+    def atualizar(self, condicao: bool) -> bool:
+        if not condicao:
+            self._inicio = None
+            return False
+        agora = time.monotonic()
+        if self._inicio is None:
+            self._inicio = agora
+        return (agora - self._inicio) >= self._atraso
 
 
 def gravidade(status: Status) -> int:

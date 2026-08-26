@@ -138,3 +138,33 @@ cada componente novo precisaria saber que existe causa e lembrar de repassá-la.
 **Custo aceito:** as funções que a tela recebe têm assinatura `(status, valor)` mesmo quando
 o recurso ignora o valor, e um recurso que não declara variante nenhuma paga um desvio
 inútil. Em troca, acrescentar redação nova não exige tocar em nenhum componente de tela.
+
+
+## Contador do Windows é aberto uma vez e lido com a primeira amostra descartada
+
+**Contexto:** os contadores de desempenho do Windows respondem por uma consulta que precisa
+ser aberta antes de ler. Abrir uma por leitura custaria caro num ciclo de um segundo, e os
+contadores de taxa — os que medem velocidade, uso, transferência — calculam a diferença entre
+duas amostras em vez de devolver um número pronto.
+**Decisão:** a consulta é aberta na primeira leitura e mantida pelo resto da execução, e a
+primeira leitura de cada contador é jogada fora. A amostra de abertura fica a microssegundos
+da primeira leitura, e a diferença entre elas dá um valor sem sentido — medido: 43% num
+processador que estava em 107%. Não há como distinguir esse valor de uma queda real.
+**Descartado:** ler e fechar a cada ciclo, que evitaria guardar estado e pagaria o custo de
+abertura sessenta vezes por minuto.
+**Custo aceito:** o primeiro valor de qualquer contador novo demora um ciclo a mais para
+aparecer, e o módulo guarda estado entre chamadas.
+
+## Relógio de condição sustentada anda na coleta, nunca em quem lê os dados
+
+**Contexto:** avisos que só valem depois de a condição se manter por alguns segundos precisam
+de alguém contando o tempo. O lugar tentador é a função que monta o dado para a tela, porque
+é onde a informação aparece.
+**Decisão:** a contagem avança dentro da coleta, que roda uma vez por ciclo por construção.
+Quem lê os dados recebe a resposta já decidida e não mexe em relógio nenhum.
+**Descartado:** contar dentro da função que extrai o valor para a tela. Funciona enquanto
+houver um consumidor só; no segundo — um ícone de bandeja que também consulta o estado — o
+relógio passa a andar duas vezes por ciclo e a janela encolhe pela metade, sem erro nem
+teste vermelho.
+**Custo aceito:** o objeto de dados carrega um campo já decidido em vez de só medições
+cruas, e quem lê não consegue recalcular a janela com outro tempo.

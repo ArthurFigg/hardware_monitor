@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import recursos
 import ui.app
+from hardware import desempenho
 from hardware.collector import DadosHardware
 from hardware.discos import LeituraDisco, Unidade
 from hardware.thresholds import Status
@@ -215,3 +216,80 @@ def test_cartao_exibe_a_unidade_que_decidiu_o_status(_, raiz):
     )
     app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=leitura))
     assert app._cards["disco"]._label_percentual.cget("text") == "C: — 93%"
+
+
+def _dados_quentes(velocidade, reduzindo=False):
+    """CPU em 90% (temperatura 80°C) com a velocidade informada."""
+    return DadosHardware(
+        cpu=90.0,
+        ram=20.0,
+        disco=_disco(),
+        velocidade=velocidade,
+        reduzindo=reduzindo,
+    )
+
+
+def _app_com_reducao_imediata(raiz):
+    """Sem a janela de 5 s, que existe para a tela não piscar e atrapalha o teste."""
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    return app
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_aviso_de_reducao_aparece_no_cartao_de_temperatura(_, raiz):
+    app = _app_com_reducao_imediata(raiz)
+    app._atualizar_cards(_dados_quentes(85.0, reduzindo=True))
+    assert "diminuiu a velocidade" in app._cards["temperatura"].linha_extra
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_aviso_de_reducao_nao_muda_o_status_do_cartao(_, raiz):
+    """Frear por calor é o processador se protegendo — informação, não emergência."""
+    app = _app_com_reducao_imediata(raiz)
+    app._atualizar_cards(_dados_quentes(85.0, reduzindo=True))
+    sem_aviso = _app_com_reducao_imediata(raiz)
+    sem_aviso._atualizar_cards(_dados_quentes(120.0))
+    assert (
+        app._cards["temperatura"].status_atual
+        == sem_aviso._cards["temperatura"].status_atual
+    )
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_contador_indisponivel_esconde_a_linha(_, raiz):
+    app = _app_com_reducao_imediata(raiz)
+    app._atualizar_cards(_dados_quentes(None))
+    assert app._cards["temperatura"].linha_extra == ""
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_contador_indisponivel_mantem_a_temperatura_no_cartao(_, raiz):
+    """A linha some, o cartão continua mostrando a temperatura estimada."""
+    app = _app_com_reducao_imediata(raiz)
+    app._atualizar_cards(_dados_quentes(None))
+    assert app._cards["temperatura"]._label_percentual.cget("text") == "~80°C"
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_leitura_do_contador_que_levanta_erro_nao_derruba_o_cartao(_, raiz):
+    """Contador que explode na leitura vira indisponível, nunca exceção na tela."""
+    app = _app_com_reducao_imediata(raiz)
+    contador = MagicMock(ok=True, ler=MagicMock(side_effect=OSError("contador sumiu")))
+    with (
+        patch.object(desempenho, "_contador", contador),
+        patch.object(desempenho, "_tentou_abrir", True),
+    ):
+        velocidade = desempenho.velocidade_processador()
+    app._atualizar_cards(_dados_quentes(velocidade))
+    assert app._cards["temperatura"].linha_extra == ""
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_aviso_nao_aparece_antes_da_coleta_confirmar(_, raiz):
+    """Uma queda de um segundo não pode piscar a linha na tela."""
+    app = _app_com_reducao_imediata(raiz)
+    app._atualizar_cards(_dados_quentes(85.0, reduzindo=False))
+    assert app._cards["temperatura"].linha_extra == ""

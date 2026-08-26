@@ -4,6 +4,7 @@ import pytest
 
 from hardware.discos import LeituraDisco, Unidade
 from hardware.thresholds import (
+    ConfirmadorSustentado,
     RastreadorAlerta,
     Status,
     classificar,
@@ -11,6 +12,7 @@ from hardware.thresholds import (
     classificar_temperatura,
     classificar_unidade,
     estimar_temperatura,
+    reduzindo_por_calor,
 )
 
 
@@ -61,12 +63,12 @@ def test_rastreador_nao_altera_status_atencao():
     assert RastreadorAlerta().atualizar(Status.ATENCAO) == Status.ATENCAO
 
 
-@pytest.mark.parametrize("celsius", [0.0, 30.0, 59.9])
+@pytest.mark.parametrize("celsius", [0.0, 30.0, 64.9])
 def test_classificar_temperatura_normal(celsius):
     assert classificar_temperatura(celsius) == Status.NORMAL
 
 
-@pytest.mark.parametrize("celsius", [60.0, 70.0, 79.9])
+@pytest.mark.parametrize("celsius", [65.0, 70.0, 79.9])
 def test_classificar_temperatura_atencao(celsius):
     assert classificar_temperatura(celsius) == Status.ATENCAO
 
@@ -130,3 +132,60 @@ def test_desgaste_leva_o_disco_a_alerta():
         disco_desgastado="CT120BX500SSD1",
     )
     assert classificar_disco(leitura) == Status.ALERTA
+
+
+def test_temperatura_atencao_acende_junto_com_a_cpu():
+    """65°C é exatamente CPU 60% — os dois cartões acendem no mesmo ponto, não antes."""
+    assert classificar_temperatura(estimar_temperatura(60.0)) == Status.ATENCAO
+
+
+def test_temperatura_normal_logo_abaixo_do_limite():
+    assert classificar_temperatura(64.9) == Status.NORMAL
+
+
+def test_alerta_de_temperatura_continua_em_80_graus():
+    assert classificar_temperatura(80.0) == Status.ALERTA
+
+
+def test_carga_alta_com_velocidade_baixa_e_reducao():
+    assert reduzindo_por_calor(90.0, 85.0)
+
+
+def test_carga_alta_com_velocidade_alta_nao_e_reducao():
+    """Turbo passa de 100%: velocidade alta sob carga é o processador trabalhando bem."""
+    assert not reduzindo_por_calor(90.0, 95.0)
+
+
+def test_carga_baixa_com_velocidade_baixa_nao_e_reducao():
+    """PC ocioso também freia — ali é economia de energia, e acusar seria alarme falso."""
+    assert not reduzindo_por_calor(50.0, 70.0)
+
+
+def test_sem_leitura_de_velocidade_nao_afirma_reducao():
+    assert not reduzindo_por_calor(95.0, None)
+
+
+def test_carga_exatamente_no_limite_conta_como_alta():
+    assert reduzindo_por_calor(85.0, 89.9)
+
+
+def test_velocidade_exatamente_no_limite_nao_conta_como_baixa():
+    assert not reduzindo_por_calor(90.0, 90.0)
+
+
+def test_reducao_so_confirma_depois_do_tempo_minimo():
+    confirmador = ConfirmadorSustentado(atraso=5.0)
+    assert not confirmador.atualizar(True)
+
+
+def test_reducao_confirma_quando_o_tempo_passa():
+    confirmador = ConfirmadorSustentado(atraso=0.0)
+    assert confirmador.atualizar(True)
+
+
+def test_condicao_que_some_reinicia_a_contagem():
+    confirmador = ConfirmadorSustentado(atraso=5.0)
+    confirmador.atualizar(True)
+    confirmador.atualizar(False)
+    with patch("hardware.thresholds.time.monotonic", return_value=1e9):
+        assert not confirmador.atualizar(True)

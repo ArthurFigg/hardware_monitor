@@ -154,3 +154,7 @@ avisar quando o processador reduz a própria velocidade para não esquentar.
   Windows por consulta PDH persistente, resolvida por número; a regra de carga alta com
   velocidade baixa; e a observação de que `psutil.cpu_freq()` não serve no Windows.
 - **Melhorias — ver `aprovados.txt`** → marcar a spec 3 como especificada.
+
+
+---
+**Status:** concluida em 2026-08-26

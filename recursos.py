@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from hardware.collector import DadosHardware
+from hardware.desempenho import LeituraTemperatura
 from hardware.thresholds import (
     Status,
     classificar,
@@ -258,12 +259,38 @@ DISCO = Recurso(
     },
 )
 
+_AVISO_REDUCAO = "Seu processador diminuiu a velocidade para não esquentar."
+
+
+def _celsius(leitura) -> float:
+    """Aceita a leitura completa ou o número solto — o cartão pede o valor inicial com 0.0."""
+    return getattr(leitura, "celsius", leitura)
+
+
+def _valor_temperatura(leitura) -> str:
+    return f"~{_celsius(leitura):.0f}°C"
+
+
+def _aviso_reducao(leitura) -> str:
+    """Informação, não emergência: a linha aparece e o semáforo não muda de cor.
+
+    Frear por calor é o processador se protegendo e conseguindo, e não há ação a tomar.
+    Contrasta com o desgaste de disco, que muda o status justamente porque a pessoa
+    precisa agir.
+    """
+    return _AVISO_REDUCAO if getattr(leitura, "reduzindo", False) else ""
+
+
 TEMPERATURA = Recurso(
     nome="temperatura",
     rotulo="Temperatura",
-    classificar=classificar_temperatura,
-    extrair=lambda dados: estimar_temperatura(dados.cpu),
-    formatar_valor=lambda v: f"~{v:.0f}°C",
+    classificar=lambda leitura: classificar_temperatura(_celsius(leitura)),
+    extrair=lambda dados: LeituraTemperatura(
+        celsius=estimar_temperatura(dados.cpu),
+        reduzindo=dados.reduzindo,
+    ),
+    formatar_valor=_valor_temperatura,
+    linha_extra_fn=_aviso_reducao,
     descricoes={
         Status.NORMAL: {
             CAUSA_PADRAO: "Temperatura dentro do esperado. O processador está "

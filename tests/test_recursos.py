@@ -119,7 +119,7 @@ def test_so_cpu_e_ram_varrem_processos():
 
 def test_temperatura_e_extraida_da_cpu():
     dados = DadosHardware(cpu=100.0, ram=10.0, disco=10.0)
-    assert TEMPERATURA.extrair(dados) == 85.0
+    assert TEMPERATURA.extrair(dados).celsius == 85.0
 
 
 def test_formato_do_valor_por_recurso():
