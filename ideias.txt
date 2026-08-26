@@ -548,6 +548,35 @@ C8. Tela de diagnostico  >>> UNIFICADA COM O C3 (2026-08-25)
 PARADAS — levantadas mas nao triadas
 ===============================================================================
 
+D2. DUAS TEMPERATURAS NA TELA: CPU E GPU  >>> PEDIDO DO USUARIO (26/08/2026)
+
+    O usuario quer os dois cartoes de temperatura. Na triagem a ideia B1 virou "uso da
+    placa de video" em vez de temperatura, e ele diz que aceitou isso sem perceber.
+    A spec 6 ja esta aprovada e entrega USO, nao temperatura. Fica como esta nesta
+    versao; entra na proxima.
+
+    O QUE PRECISA SER RESOLVIDO ANTES DE VIRAR SPEC — e a razao de ter caido antes:
+    temperatura de GPU nao sai de contador do Windows nem do psutil. Exige a
+    biblioteca do FABRICANTE, e o caminho muda conforme a placa:
+      - NVIDIA: existe caminho limpo em Python (biblioteca oficial de gerenciamento).
+      - AMD: nao ha equivalente maduro em Python puro. O caminho usual passa por
+        programa externo em C#, o que traz dependencia pesada para um app que hoje
+        so usa stdlib e psutil.
+    A maquina do usuario parece ter placa AMD (ha entrada de audio AMD na lista de
+    inicializacao), mas ISSO NAO FOI VERIFICADO. Primeiro passo da proxima sessao:
+    descobrir qual e a placa. A resposta decide se a ideia e barata ou cara.
+
+    ATENCAO A DUAS COISAS QUE JA FORAM DECIDIDAS E CONTINUAM VALENDO:
+      - Regra de distribuicao: leitura que falha esconde a si mesma. Num PC com placa
+        de outro fabricante, ou sem placa dedicada, o cartao tem que sumir.
+      - A temperatura de CPU exibida hoje e ESTIMADA a partir do % de CPU, nao medida.
+        Se a de GPU for medida de verdade, a tela passa a ter uma temperatura real e
+        uma inventada lado a lado, sem dizer qual e qual. Isso precisa ser resolvido,
+        ou vira o tipo de coisa que faz o usuario confiar no numero errado.
+
+    SE ENTRAR: a spec 6 precisa ser reaberta (/reabrir-spec), nao reescrita por fora.
+
+
 D1. Animacoes na interface  >>> PARADA (2026-08-25, a pedido do usuario)
     Usuario achou sites de animacao e considerou usar. Nao triado — retomar quando
     ele trouxer os links.
