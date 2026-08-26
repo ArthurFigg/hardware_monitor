@@ -202,6 +202,73 @@ O app **não tem configuração pelo usuário**, e isso é decisão, não esquec
   todo mundo — não transferir a decisão a eles.
 - Única exceção: o interruptor de abrir com o Windows.
 
+## Setup do ambiente
+
+> Projeto **existente**, não novo: não há `uv init` a rodar. Este setup é ajuste do que já
+> existe, e quita as dívidas da seção "Qualidade — dívidas conhecidas".
+
+**Python:** 3.14 — **mantido**. A preferência geral é pela penúltima estável, mas essa regra
+existe para evitar biblioteca sem suporte, e foi verificado em 26/08/2026 que as quatro
+dependências que ainda vão entrar (`ruff` 0.16.4, `pystray` 0.19.5, `Pillow` 12.3.0,
+`pyinstaller` 6.22.2) resolvem para 3.14. Trocar agora seria mexer num ambiente com 61 testes
+passando sem ganho — e a arquitetura de testes (fixture de root único) existe por causa do
+3.14.
+
+**Comandos de execução:**
+```bash
+uv add "psutil>=7.2.2,<8.0.0" "customtkinter>=5.2.2,<6.0.0" "plyer>=2.1.0,<3.0.0"
+uv add --dev "pytest>=9.0.3,<10.0.0" "ruff>=0.16.4,<0.17.0"
+uv run ruff format .
+uv run ruff check .
+uv run pytest -v
+```
+
+As três primeiras já estão instaladas — o `uv add` aqui serve para **acrescentar o teto de
+versão**, que hoje falta. O teto do `ruff` é apertado de propósito: ele ainda está em `0.x`, e
+regra de formatação muda entre versões menores; teto largo faria o formatador reescrever o
+projeto sozinho numa atualização.
+
+**Antes de aceitar o `ruff format`:** ele conserta as 10 linhas acima de 88 caracteres de uma
+vez, mas reformata tudo que discordar do estilo dele — o diff pode ser bem maior que 10 linhas.
+Olhar o diff antes de commitar. Os textos da interface são fixos: quebrar a linha, **nunca**
+mudar a frase.
+
+**Pastas a criar:** nenhuma. A spec 1 cria `recursos.py` na raiz e `hardware/processos.py`, e
+as duas pastas já existem. O pacote `sistema/` entra na spec 4.
+
+**Arquivo a criar:**
+```bash
+touch CHANGELOG.md
+```
+O `/spec-close` escreve nele a cada spec fechada, e a spec 1 é a primeira do ciclo. Formato
+Keep a Changelog + SemVer, conforme o CLAUDE.md global.
+
+**Conteúdo do `.env.example`:** nenhum. O app não tem configuração pelo usuário, por decisão
+registrada na seção "Configuração" — não existe o que configurar.
+
+**Dependências que ficam de fora agora** (entram quando a spec chegar):
+- `pystray`, `Pillow`: spec 5 (ícone na bandeja)
+- `pyinstaller` (dev): spec 7 (empacotar em `.exe`)
+
+**CI — `.github/workflows/tests.yml`:**
+```yaml
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync
+      - run: uv run pytest -v
+```
+
+**Ressalva sobre o CI:** o runner é Linux e o app é Windows-only — leitura de registro,
+contadores PDH e `Get-PhysicalDisk` não existem lá. Isso só funciona porque a regra de testes
+do projeto manda mockar toda fronteira de sistema; se algum teste tocar o Windows de verdade,
+ele quebra no CI. É uma trava útil: CI vermelho aqui significa teste que não devia existir.
+
 ## Qualidade — dívidas conhecidas (levantadas em 25/08/2026)
 Achadas comparando o projeto com as regras do CLAUDE.md global. Nenhuma é urgente;
 todas devem ser resolvidas na etapa de setup, antes da primeira spec.

@@ -81,3 +81,26 @@ curta que abre uma tela ao ser clicada.
 **Decisão:** quando o ícone da bandeja existir, a notificação passa a sair dele, que detecta
 o clique. O app deixa de depender da biblioteca atual para isso.
 **Descartado:** manter a biblioteca e abrir mão do clique, o que mataria o resumo de uso.
+
+## Python 3.14 fica, em vez de voltar para uma versão mais assentada
+
+**Contexto:** a preferência geral é usar a penúltima versão estável, porque biblioteca costuma
+demorar a suportar release novo — e este projeto ainda vai acrescentar quatro dependências.
+**Decisão:** manter 3.14. Verificado em 26/08/2026 que `ruff`, `pystray`, `Pillow` e
+`pyinstaller` resolvem para 3.14; o motivo da regra não se aplica aqui.
+**Descartado:** voltar para 3.13 — mexeria num ambiente com 61 testes passando sem ganho, e a
+arquitetura de testes existe por causa do 3.14 (ele não aceita dois roots Tcl/Tk no mesmo
+processo, por isso a fixture de root é compartilhada pela suíte inteira).
+**Custo aceito:** ao acrescentar dependência nova, conferir suporte a 3.14 antes — não é
+garantido como seria numa versão mais antiga.
+
+## O CI roda em Linux, mesmo o app sendo só para Windows
+
+**Contexto:** o app depende de coisas que só existem no Windows — chave do registro, contadores
+de desempenho, consulta de disco. O runner gratuito e rápido é Linux.
+**Decisão:** rodar os testes em Linux mesmo assim. Isso só funciona porque toda fronteira com o
+sistema é mockada, e é exatamente essa a regra de testes do projeto.
+**Custo aceito:** nenhum teste pode tocar o Windows de verdade. Na prática isso vira uma trava
+útil: CI vermelho por causa de chamada real ao sistema significa teste que não deveria existir.
+O que não é testável assim (ícone da bandeja, superaquecimento físico, contador em outra
+máquina) já está declarado como verificação manual.
