@@ -2,7 +2,6 @@ import customtkinter as ctk
 
 from hardware.thresholds import Status
 
-
 CORES = {
     Status.NORMAL: "#4CAF50",
     Status.ATENCAO: "#FFC107",

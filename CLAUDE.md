@@ -80,9 +80,9 @@ hardware_monitor/
 └── CLAUDE.md
 ```
 
-Ainda **não existe** `CHANGELOG.md`, e o `/spec-close` escreve nele a cada spec fechada —
-criar antes de fechar a primeira. Também não existe `.claude/specs/`: o projeto foi
-construído sem o ciclo de specs, e a v2 é a primeira a segui-lo.
+O `CHANGELOG.md` foi criado em 26/08/2026, com a v1.0.0 registrada e a seção "Não lançado"
+pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_dominio.md` e o
+`_decisoes.md`. O CI está em `.github/workflows/tests.yml`.
 
 ## Decisões arquiteturais importantes
 
@@ -228,10 +228,18 @@ versão**, que hoje falta. O teto do `ruff` é apertado de propósito: ele ainda
 regra de formatação muda entre versões menores; teto largo faria o formatador reescrever o
 projeto sozinho numa atualização.
 
-**Antes de aceitar o `ruff format`:** ele conserta as 10 linhas acima de 88 caracteres de uma
-vez, mas reformata tudo que discordar do estilo dele — o diff pode ser bem maior que 10 linhas.
-Olhar o diff antes de commitar. Os textos da interface são fixos: quebrar a linha, **nunca**
-mudar a frase.
+**EXECUTADO em 26/08/2026.** Resultado real, que corrige a expectativa que estava escrita aqui:
+o `ruff format` **não** conserta linha longa que seja *string* — formatador nenhum quebra
+string. Ele arrumou 3 arquivos (ordenação de imports, asserções longas, chamadas de `grid`), as
+linhas caíram de 10 para 5, e os 61 testes continuaram passando. Nenhum texto de interface foi
+alterado — as frases só passaram para linha própria.
+
+**As 5 que restam são todas os textos da interface** em `DESCRICOES` e um teste que compara com
+um deles. Ficam como estão de propósito: a **spec 1** move esses textos para `recursos.py`, e
+quebrá-los agora seria trabalho que a spec 1 refaz. A spec 1 já os escreve quebrados.
+
+E vale saber: o `ruff check` **não reclama** de linha longa — essa regra não está no conjunto
+padrão. O `line-length = 88` só orienta o formatador.
 
 **Pastas a criar:** nenhuma. A spec 1 cria `recursos.py` na raiz e `hardware/processos.py`, e
 as duas pastas já existem. O pacote `sistema/` entra na spec 4.
@@ -273,21 +281,19 @@ ele quebra no CI. É uma trava útil: CI vermelho aqui significa teste que não 
 Achadas comparando o projeto com as regras do CLAUDE.md global. Nenhuma é urgente;
 todas devem ser resolvidas na etapa de setup, antes da primeira spec.
 
-- **`ruff` está configurado mas não instalado.** O `pyproject.toml` tem
-  `[tool.ruff] line-length = 88`, mas o ruff não é dependência do projeto — nunca rodou.
-  Instalar como dependência de desenvolvimento e rodar antes da primeira spec.
-- **10 linhas passam de 88 caracteres**, consequência direta do item acima:
-  4 em `hardware/thresholds.py`, 3 em `tests/hardware/test_thresholds.py`,
-  2 em `ui/components/cards.py`, 1 em `tests/ui/test_app.py`.
-  Quase todas são os textos longos da interface. **Quebrar a linha, nunca mudar a frase** —
-  os textos são fixos (ver "Textos da interface").
+- ~~`ruff` configurado mas não instalado~~ → **resolvido em 26/08/2026**: `ruff>=0.16.4,<0.17.0`
+  entrou como dependência de desenvolvimento e rodou.
+- ~~10 linhas passam de 88 caracteres~~ → **5, em 26/08/2026**. O `ruff format` resolveu as
+  outras 5. As restantes (4 em `hardware/thresholds.py`, 1 em
+  `tests/hardware/test_thresholds.py`) são *strings* — os textos da interface — e formatador
+  não quebra string. Ficam para a **spec 1**, que move esses textos para `recursos.py` e já os
+  escreve quebrados. Quebrar antes seria refazer depois.
 - **Dois construtores passam de 20 linhas:** `ui/app.py.__init__` (44) e
   `ui/components/cards.py.__init__` (35). O do `app.py` vai crescer: a spec 4 acrescenta o
   interruptor de inicialização e a spec 5 acrescenta o card de GPU. Extrair a montagem dos
   cards e dos notificadores antes que as specs piorem o quadro.
-- **Dependências sem teto de versão** no `pyproject.toml` (`customtkinter>=5.2.2` sem
-  `<6.0.0`, e as demais). Contraria a regra global de sempre fixar teto. Corrigir junto com
-  a instalação do ruff.
+- ~~Dependências sem teto de versão~~ → **resolvido em 26/08/2026**: as três de produção e as
+  duas de desenvolvimento têm teto.
 
 Verificado e limpo: nenhum `print()`, nenhum `except`, nenhum `import *`, nenhum uso de
 async.

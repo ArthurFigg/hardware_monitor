@@ -57,5 +57,9 @@ class CartaoRecurso(ctk.CTkFrame):
         self.grid_columnconfigure(1, weight=1)
         self._semaforo.grid(row=0, column=0, rowspan=2, padx=(16, 12), pady=16)
         self._label_titulo.grid(row=0, column=1, sticky="w", padx=(0, 8), pady=(16, 2))
-        self._label_percentual.grid(row=0, column=2, sticky="e", padx=(0, 16), pady=(16, 2))
-        self._label_descricao.grid(row=1, column=1, columnspan=2, sticky="w", padx=(0, 16), pady=(2, 16))
+        self._label_percentual.grid(
+            row=0, column=2, sticky="e", padx=(0, 16), pady=(16, 2)
+        )
+        self._label_descricao.grid(
+            row=1, column=1, columnspan=2, sticky="w", padx=(0, 16), pady=(2, 16)
+        )

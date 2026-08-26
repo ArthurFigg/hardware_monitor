@@ -1,7 +1,6 @@
 import time
 from enum import Enum
 
-
 LIMITE_ATENCAO = 60.0
 LIMITE_ALERTA = 85.0
 

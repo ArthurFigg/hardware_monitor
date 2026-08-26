@@ -1,5 +1,5 @@
-import pytest
 import customtkinter as ctk
+import pytest
 
 
 @pytest.fixture(scope="session")

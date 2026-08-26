@@ -29,15 +29,24 @@ def test_classificar_alerta(percentual):
 
 
 def test_descricao_normal_contem_texto_correto():
-    assert descricao(Status.NORMAL) == "Desempenho estável. O sistema está operando com folga."
+    assert (
+        descricao(Status.NORMAL)
+        == "Desempenho estável. O sistema está operando com folga."
+    )
 
 
 def test_descricao_atencao_contem_texto_correto():
-    assert descricao(Status.ATENCAO) == "Carga moderada. Vários processos estão exigindo recursos da máquina."
+    assert (
+        descricao(Status.ATENCAO)
+        == "Carga moderada. Vários processos estão exigindo recursos da máquina."
+    )
 
 
 def test_descricao_alerta_contem_texto_correto():
-    assert descricao(Status.ALERTA) == "Sobrecarga de memória/processamento. Feche aplicativos inativos para evitar travamentos."
+    assert (
+        descricao(Status.ALERTA)
+        == "Sobrecarga de memória/processamento. Feche aplicativos inativos para evitar travamentos."
+    )
 
 
 def test_rastreador_retorna_atencao_antes_do_atraso():

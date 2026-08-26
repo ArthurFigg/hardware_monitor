@@ -7,6 +7,7 @@ from hardware.thresholds import Status
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
 def test_monitor_tem_quatro_cards(_, raiz):
     from ui.app import AplicativoMonitor
+
     app = AplicativoMonitor(raiz)
     app._rodando = False
     assert set(app._cards.keys()) == {"cpu", "ram", "disco", "temperatura"}
@@ -15,6 +16,7 @@ def test_monitor_tem_quatro_cards(_, raiz):
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
 def test_monitor_cards_titulos_corretos(_, raiz):
     from ui.app import AplicativoMonitor
+
     app = AplicativoMonitor(raiz)
     app._rodando = False
     assert app._cards["cpu"]._label_titulo.cget("text") == "CPU"
@@ -26,6 +28,7 @@ def test_monitor_cards_titulos_corretos(_, raiz):
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
 def test_monitor_atualizar_cards_todos_normal(_, raiz):
     from ui.app import AplicativoMonitor
+
     app = AplicativoMonitor(raiz)
     app._rodando = False
     app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
@@ -37,6 +40,7 @@ def test_monitor_atualizar_cards_todos_normal(_, raiz):
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
 def test_monitor_atualizar_cards_cpu_atencao(_, raiz):
     from ui.app import AplicativoMonitor
+
     app = AplicativoMonitor(raiz)
     app._rodando = False
     app._atualizar_cards(DadosHardware(cpu=70.0, ram=20.0, disco=30.0))
@@ -47,6 +51,7 @@ def test_monitor_atualizar_cards_cpu_atencao(_, raiz):
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
 def test_monitor_temperatura_normal_com_cpu_baixa(_, raiz):
     from ui.app import AplicativoMonitor
+
     app = AplicativoMonitor(raiz)
     app._rodando = False
     # cpu=40 → estimar_temperatura=55°C → NORMAL
@@ -57,9 +62,12 @@ def test_monitor_temperatura_normal_com_cpu_baixa(_, raiz):
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=30.0))
 def test_monitor_temperatura_alerta_com_cpu_alta(_, raiz):
     from ui.app import AplicativoMonitor
+
     app = AplicativoMonitor(raiz)
     app._rodando = False
-    app._rastreadores["temperatura"] = MagicMock(atualizar=MagicMock(return_value=Status.ALERTA))
+    app._rastreadores["temperatura"] = MagicMock(
+        atualizar=MagicMock(return_value=Status.ALERTA)
+    )
     # cpu=100 → estimar_temperatura=85°C → ALERTA
     app._atualizar_cards(DadosHardware(cpu=100.0, ram=20.0, disco=30.0))
     assert app._cards["temperatura"].status_atual == Status.ALERTA
