@@ -7,7 +7,7 @@
 
 | Entidade | O que é |
 |---|---|
-| **Recurso** | Algo da máquina que é vigiado: CPU, RAM, Disco, Temperatura e, a partir da spec 5, a placa de vídeo. Hoje aparece espalhado como texto solto (`"cpu"`, `"ram"`) nos dicionários do `app.py`. |
+| **Recurso** | Algo da máquina que é vigiado: CPU, RAM, Disco, Temperatura e, a partir da spec 6, a placa de vídeo. Hoje aparece espalhado como texto solto (`"cpu"`, `"ram"`) nos dicionários do `app.py`. |
 | **Leitura** | O valor de um recurso num instante: 74%, ~66°C. É o `DadosHardware` de hoje. |
 | **Status** | O veredito do semáforo sobre uma leitura: Normal, Atenção, Alerta. Já existe no código com esse nome. |
 | **Limite** | O número que separa um status do seguinte: 60%, 85%, 65°C. Hoje vive como constante solta (`LIMITE_ATENCAO`, `LIMITE_ALERTA`, `LIMITE_TEMP_*`). |
@@ -53,7 +53,7 @@ existiria sozinha — a notificação sem a coleta não tem o que notificar.
 
 Verificado contra o que vem pela frente:
 
-- As 6 specs da v2 não trazem vocabulário novo. Trazem mais recursos (placa de vídeo) e
+- As 7 specs da v2 não trazem vocabulário novo. Trazem mais recursos (placa de vídeo) e
   mais sinais sobre os mesmos recursos (calor, saúde do disco).
 - O projeto seguinte (histórico) traz palavras novas — amostra, período, resumo — mas elas
   **somam** ao vocabulário em vez de conflitar: uma amostra é uma leitura guardada, um

@@ -3,8 +3,8 @@
 **Ordem:** 3 de 7
 **Depende de:** 01-notificacoes-por-recurso (tipo `Recurso`), 02-medicao-de-disco (linha extra
 do `CartaoRecurso`)
-**Score:** 4
-**Revisão:** pendente
+**Score:** 5
+**Revisão:** aprovada
 
 ## O que faz
 
@@ -40,8 +40,9 @@ avisar quando o processador reduz a própria velocidade para não esquentar.
 
 ### Quando o aviso aparece
 
-- O aviso aparece quando **as duas condições acontecem juntas**: carga de CPU acima de 85% e
-  velocidade do processador abaixo de 90%.
+- O aviso aparece quando **as duas condições acontecem juntas**: carga de CPU **em 85% ou
+  mais** e velocidade do processador **abaixo de 90%**. Fronteiras inclusivas no limite
+  inferior, como o resto do projeto (`>= 85`, `< 90`).
 - As duas juntas são obrigatórias. O contador sozinho também cai com o PC ocioso, e nesse
   caso a queda é proposital (economia de energia) — acusar ali seria alarme falso.
 - O aviso só é confirmado depois de **5 segundos contínuos** nessa condição. Uma queda de um
@@ -86,16 +87,22 @@ avisar quando o processador reduz a própria velocidade para não esquentar.
 
 ## Módulos afetados
 
-- `hardware/desempenho.py` — **novo**. Abre a consulta PDH uma vez, resolve o nome do contador
-  por número com queda para o inglês, lê o valor por ciclo, e devolve indisponível em vez de
-  levantar erro quando algo falha.
+- `hardware/pdh.py` — **novo**. O mecanismo PDH compartilhado: abre e mantém consulta,
+  resolve nome de contador por número com queda para o inglês, e devolve indisponível em
+  vez de levantar erro. **Dono definido no `/spec-review`:** esta spec cria; a spec 6
+  **importa sem editar**. Antes, as duas se empurravam — esta declarava intocável o que
+  aquela precisava estender.
+- `hardware/desempenho.py` — **novo**. Usa `pdh.py` para ler `% Processor Performance` e
+  aplica a regra de redução por calor.
 - `hardware/thresholds.py` — `LIMITE_TEMP_ATENCAO` passa de 60,0 para 65,0; ganha a regra que
   decide o aviso de redução a partir de carga e velocidade, com a confirmação de 5 segundos.
 - `hardware/collector.py` — `coletar()` passa a devolver também a velocidade do processador
   (ou indisponível).
 - `ui/app.py` — o cartão de Temperatura passa a receber a linha extra quando o aviso está
   ativo.
-- `tests/hardware/test_desempenho.py` — **novo**, com a leitura PDH mockada.
+- `tests/hardware/test_pdh.py` — **novo**. Cobre a resolução de nome por número, a queda
+  para o inglês e a devolução de indisponível.
+- `tests/hardware/test_desempenho.py` — **novo**, com `pdh.py` mockado.
 - `tests/hardware/test_thresholds.py` — testes de 60°C ajustados para 65°C; ganha os testes da
   regra de redução.
 - `tests/hardware/test_collector.py` — ajustado para o novo campo.

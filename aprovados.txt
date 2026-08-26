@@ -1,4 +1,22 @@
 APROVADOS — hardware_monitor
+DESATUALIZADO A PARTIR DE 25/08/2026 — este arquivo foi o insumo da triagem, mas as
+SPECS REAIS vivem em .claude/specs/ (01 a 07) e sao a fonte da verdade. O /spec-review
+de 25/08/2026 mudou coisas que este arquivo nao reflete:
+
+  - As 6 specs viraram 7: a spec 4 original (boot + bandeja + rodape) foi dividida em
+    04 (boot + rodape) e 05 (bandeja), porque a bandeja e a unica parte com dependencia
+    nova E thread conversando com a interface.
+  - A fronteira spec 1 / spec 2 mudou: a spec 1 e dona de TUDO QUE O APP DIZ (textos de
+    cartao e notificacao, de todos os recursos); a spec 2 e dona de TUDO QUE O APP MEDE
+    NO DISCO. O item A14 abaixo ainda mistura os dois.
+  - O tipo Recurso foi redesenhado e ganhou: classificador proprio por recurso, variantes
+    de texto por causa, marcador de "nao notifica" e cartao que pode sumir.
+  - Tres modulos mudaram de lugar: recursos.py foi para a RAIZ (carrega texto de
+    interface), inicializacao.py foi para sistema/ (registro nao e hardware), e nasceu
+    hardware/pdh.py como mecanismo compartilhado (spec 3 cria, spec 6 importa).
+  - A "regra dos 5 segundos" so existe para Alerta; a spec 6 generaliza o RastreadorAlerta
+    para poder aplica-la a Atencao.
+
 Extrato acionavel do ideias.txt. So o que foi aprovado, ja agrupado em specs.
 O historico completo (recusas, motivos, ideias adiadas) fica no ideias.txt.
 Triagem dos tres grupos CONCLUIDA em 2026-08-25 (30 itens: 12 entram, 11 adiados,

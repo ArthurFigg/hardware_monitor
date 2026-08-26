@@ -1,10 +1,11 @@
 # Ícone na bandeja
 
 **Ordem:** 5 de 7
-**Depende de:** 04-abrir-com-o-windows-e-rodape (é ela que faz o app subir no boot; sem
-bandeja, o app subiria minimizado na barra de tarefas e morreria ao ser fechado)
+**Depende de:** 01-notificacoes-por-recurso (o pior status vem da coleção de `Recurso`),
+04-abrir-com-o-windows-e-rodape (faz o app subir no boot, e cria `sistema/estado.py` para a
+mensagem de primeira vez)
 **Score:** 3
-**Revisão:** pendente
+**Revisão:** aprovada
 
 ## O que faz
 
@@ -16,7 +17,10 @@ janela passa a esconder o app para lá em vez de encerrá-lo.
 ### O ícone
 
 - Quando o app abre, um ícone aparece na bandeja do sistema, ao lado do relógio.
-- O ícone é colorido pelo **pior status** entre todos os recursos: verde quando todos estão
+- O ícone é colorido pelo **pior status** entre os recursos, calculado em `recursos.py`
+  (spec 1) e **nunca** em `app.py` — o CLAUDE.md proíbe lógica de negócio ali.
+  Recurso indisponível (cartão sumido) fica **fora** da conta.
+- As cores: verde quando todos estão
   em Normal, amarelo quando algum está em Atenção, vermelho quando algum está em Alerta.
   As cores são as mesmas do semáforo, sem inventar paleta nova.
 - Quando o pior status muda, a cor do ícone acompanha.
@@ -27,7 +31,10 @@ janela passa a esconder o app para lá em vez de encerrá-lo.
 
 - Quando a pessoa **fecha a janela**, o app esconde a janela e continua rodando. A coleta não
   para, as notificações continuam funcionando.
-- **Na primeira vez** que isso acontece, e só na primeira, aparece um aviso: "O monitor
+- **Na primeira vez** que isso acontece, e só na primeira **em toda a vida da instalação**,
+  aparece uma mensagem na própria janela (não é notificação do sistema). O "já mostrei"
+  é guardado em `sistema/estado.py`, criado pela spec 4 — em `%LOCALAPPDATA%`, nunca na
+  pasta do app. Texto: "O monitor
   continua rodando. Clique no ícone ao lado do relógio para abrir de novo." Sem esse aviso a
   pessoa acha que fechou o app, e ele fica rodando invisível — comportamento que ela não pediu
   e não percebeu.
@@ -82,8 +89,10 @@ janela passa a esconder o app para lá em vez de encerrá-lo.
 - `ui/bandeja.py` — **novo**. Cria e mantém o ícone, desenha a imagem colorida pelo status
   (com `Pillow`), monta o menu Abrir/Sair, e devolve indisponível em vez de levantar erro
   quando a bandeja não existe.
-- `ui/app.py` — fechar a janela passa a esconder; ganha o aviso de primeira vez; informa o
-  pior status à bandeja a cada atualização.
+- `ui/app.py` — fechar a janela passa a esconder; exibe a mensagem de primeira vez; repassa
+  à bandeja o pior status **já calculado** por `recursos.py`.
+- `sistema/estado.py` — **importado sem editar** (criado pela spec 4): guarda se a mensagem
+  de primeira vez já foi exibida.
 - `main.py` — sobe o ícone junto com a janela e encerra os dois no "Sair".
 - `pyproject.toml` — acrescenta `pystray` e `Pillow`, com teto de versão conforme a regra do
   CLAUDE.md global.
@@ -95,8 +104,9 @@ janela passa a esconder o app para lá em vez de encerrá-lo.
 ## Não mexer
 
 - `notifications/manager.py` e o `plyer` — a notificação **não** migra nesta spec.
-- `hardware/recursos.py`, `processos.py`, `discos.py`, `desempenho.py` — specs 1, 2 e 3.
-- `hardware/inicializacao.py` e o rodapé de uptime — spec 4.
+- `recursos.py` (raiz), `hardware/processos.py`, `discos.py`, `pdh.py`, `desempenho.py` —
+  specs 1, 2 e 3. O pior status é **lido** de `recursos.py`, não recalculado aqui.
+- `sistema/inicializacao.py`, `sistema/estado.py` e o rodapé de uptime — spec 4.
 - `hardware/thresholds.py` e qualquer limite.
 - `ui/components/cards.py` e `ui/components/semaphore.py` — as **cores** do semáforo são lidas
   de lá, não redefinidas aqui.

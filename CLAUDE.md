@@ -8,7 +8,7 @@ Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, 
 
 ## Stack
 - Python 3.14.3 (pythoncore-3.14-64 — instalação Windows Store)
-  - Nota antiga dizia "Tcl/Tk parcialmente disponível" sem dizer o que faltava. Verificado em 25/08/2026: Tk 8.6 presente e as pastas `tcl/`, `DLLs/` e `Lib/tkinter` existem — ou seja, o que a spec 6 precisa empacotar está lá. Se algo específico faltar, anotar aqui o que é; "parcialmente" sem detalhe não ajuda ninguém.
+  - Nota antiga dizia "Tcl/Tk parcialmente disponível" sem dizer o que faltava. Verificado em 25/08/2026: Tk 8.6 presente e as pastas `tcl/`, `DLLs/` e `Lib/tkinter` existem — ou seja, o que a spec 7 precisa empacotar está lá. Se algo específico faltar, anotar aqui o que é; "parcialmente" sem detalhe não ajuda ninguém.
 - psutil 7.2.2 — coleta de dados de hardware
 - CustomTkinter 5.2.2 — interface gráfica moderna
 - plyer 2.1.0 — notificações nativas do sistema operacional
@@ -111,7 +111,7 @@ O Alerta continua em 80°C (CPU 90%) de propósito, com a CPU ficando vermelha a
 
 **A implementar na spec 3** (`LIMITE_TEMP_ATENCAO` em `thresholds.py`, mais os testes de limite em `test_thresholds.py`). Esta skill não altera código.
 
-**Disco (a mudar na spec 2 — este é o aviso exigido acima):** hoje o Disco não tem threshold próprio. Ele passa pelo mesmo `classificar()` de CPU e RAM (60/85) e herda o mesmo texto, o que produz conselho errado: disco 87% cheio manda "feche aplicativos inativos", e fechar programa não libera espaço em disco. A spec 2 cria `classificar_disco()` e `DESCRICOES_DISCO`, e decide entre limiar por percentual (~85%/95%) ou por espaço livre absoluto.
+**Disco (a mudar na spec 2 — este é o aviso exigido acima):** hoje o Disco não tem threshold próprio. Ele passa pelo mesmo `classificar()` de CPU e RAM (60/85) e herda o mesmo texto, o que produz conselho errado: disco 87% cheio manda "feche aplicativos inativos", e fechar programa não libera espaço em disco. A **spec 1** é dona de todos os textos do Disco — ela é dona de tudo que o app diz. A **spec 2** cria `classificar_disco()` e decide o limiar. Textos e medição foram separados de propósito: o texto não depende do limite.
 
 ## Textos da interface (usar exatamente esses, sem alterar tom)
 CPU / RAM (e Disco, até a spec 2 dar textos próprios a ele):
@@ -139,13 +139,14 @@ Temperatura:
 ## Melhorias — ver `aprovados.txt`
 A lista solta que existia aqui foi substituída pela triagem de 25/08/2026. Não reintroduzir itens aqui: `aprovados.txt` é a fila, `ideias.txt` é o histórico.
 
-As 6 specs aprovadas, na ordem:
+As 7 specs aprovadas, na ordem:
 1. Notificações que dizem qual recurso e qual programa
 2. Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos
 3. Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)
-4. Abrir com o Windows, ícone na bandeja, uptime no rodapé
-5. Card de GPU com uso real (usa o mecanismo da spec 3)
-6. Empacotar em `.exe` (depende do caminho definido na spec 4)
+4. Abrir com o Windows e uptime no rodapé
+5. Ícone na bandeja, com minimizar para lá
+6. Cartão de placa de vídeo com uso real (usa o mecanismo da spec 3)
+7. Empacotar em `.exe` (depende do caminho definido na spec 4)
 
 Depois delas, como projeto à parte: histórico persistente e resumo das últimas N horas.
 
@@ -188,7 +189,7 @@ O app será usado por outras pessoas, em outras máquinas, com outros Windows.
   instala na inicialização e não oferece saída é comportamento de coisa ruim.
 - Fechar a janela esconde para a bandeja; não encerra o monitoramento.
 - Entrada de inicialização na chave `Run` do `HKCU` (não exige admin), apontando para o
-  `.exe` da spec 6.
+  `.exe` da spec 7.
 
 ## Configuração
 O app **não tem configuração pelo usuário**, e isso é decisão, não esquecimento.

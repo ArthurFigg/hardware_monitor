@@ -4,7 +4,7 @@
 **Depende de:** 01-notificacoes-por-recurso (tipo `Recurso`), 03-reducao-de-velocidade-por-calor
 (mecanismo de leitura PDH)
 **Score:** 4
-**Revisão:** pendente
+**Revisão:** aprovada
 
 ## O que faz
 
@@ -39,8 +39,12 @@ número que o Gerenciador de Tarefas exibe, não estimativa.
 
 ### O semáforo
 
-- Atenção quando o uso passa de **95%**, sustentado por 5 segundos — a mesma regra de tempo que
-  o projeto já usa.
+- Atenção quando o uso fica **acima de 95%** (`> 95`), sustentado por 5 segundos.
+  **CORRIGIDO no `/spec-review`:** eu havia escrito "a mesma regra que o projeto já usa",
+  mas os 5 segundos do `RastreadorAlerta` valem **só para Alerta** — não existe confirmação
+  temporal de Atenção em nenhum recurso, e `classificar_placa_video()` não tem onde guardar
+  esse estado. Esta spec **generaliza o `RastreadorAlerta`** para confirmar qualquer status
+  após N segundos sustentados, preservando o comportamento atual para Alerta.
 - **Nunca vai para Alerta.** Placa de vídeo no limite não é emergência e não tem ação urgente.
 - Abaixo de 95%, Normal.
 - Motivo dos limites, e é o ponto central desta spec: placa em 100% durante um jogo é o
@@ -48,6 +52,13 @@ número que o Gerenciador de Tarefas exibe, não estimativa.
   jogo inteiro e vermelho sem que nada estivesse errado. O único caso em que o número
   significa algo para este público é a placa **no limite de forma sustentada**, que explica o
   jogo engasgando e tem ação clara: baixar a qualidade gráfica.
+
+### Efeito no ícone da bandeja
+
+- A placa **entra** no cálculo do pior status que colore o ícone da bandeja (spec 5). Como
+  ela só chega a Atenção acima de 95% sustentado, o ícone fica amarelo durante um jogo
+  pesado. Isso é coerente com o cartão, que também fica amarelo — e nunca vermelho, porque
+  a placa nunca chega a Alerta.
 
 ### Quando não há placa dedicada
 
@@ -91,12 +102,20 @@ número que o Gerenciador de Tarefas exibe, não estimativa.
 - `hardware/placa_video.py` — **novo**. Abre a consulta PDH do contador de placa de vídeo,
   resolve o nome com queda para o inglês, agrega pelo maior tipo de motor, trata o código
   negativo, e devolve indisponível em vez de levantar erro.
-- `hardware/thresholds.py` — ganha `classificar_placa_video()`: Atenção acima de 95%, nunca
-  Alerta.
+- `hardware/thresholds.py` — ganha `classificar_placa_video()` (Atenção acima de 95%, nunca
+  Alerta) e **generaliza o `RastreadorAlerta`** para confirmar qualquer status após N
+  segundos, mantendo o comportamento atual de Alerta intacto.
+- `hardware/pdh.py` — **importado sem editar**. Criado pela spec 3.
 - `hardware/collector.py` — `coletar()` passa a devolver também o uso da placa (ou
   indisponível).
-- `hardware/recursos.py` — ganha **uma entrada** para a placa de vídeo: rótulo "Placa de
-  vídeo", textos de cartão, formato "23%", não varre processos, não notifica.
+- `recursos.py` (raiz) — ganha **uma entrada** para a placa de vídeo: rótulo "Placa de
+  vídeo", classificador `classificar_placa_video()`, formato "23%", não varre processos,
+  **não notifica**, cartão pode sumir. Todos esses campos existem no `Recurso` redesenhado
+  pela spec 1.
+  Textos do cartão (definidos aqui porque nascem nesta spec; a spec 1 é a dona da regra de
+  tom): Normal — "Placa de vídeo tranquila. Há folga para jogos e vídeos.";
+  Atenção — "Placa de vídeo no limite. Se um jogo estiver engasgando, diminua a qualidade
+  gráfica." Não há texto de Alerta porque a placa nunca chega lá.
 - `tests/hardware/test_placa_video.py` — **novo**, com a leitura PDH mockada.
 - `tests/hardware/test_thresholds.py` — ganha os testes de `classificar_placa_video()`.
 - `tests/hardware/test_collector.py` — ajustado para o novo campo.
@@ -107,9 +126,9 @@ número que o Gerenciador de Tarefas exibe, não estimativa.
   então acrescentar um recurso é uma entrada, não três. Se esta spec precisar mexer em
   `app.py`, é sinal de que a refatoração da spec 1 não ficou completa.
 - `ui/components/cards.py` e `semaphore.py`.
-- `hardware/desempenho.py` — a spec 3 é dona dele. Esta spec **usa o mesmo mecanismo PDH**,
-  mas com contador próprio; se houver código comum a extrair, extrair sem alterar o
-  comportamento do aviso de calor.
+- `hardware/desempenho.py` — a spec 3 é dona. Esta spec não o toca.
+- `hardware/pdh.py` — **importar, nunca editar**. A spec 3 cria o mecanismo compartilhado
+  justamente para esta spec consumir sem extrair nada de lá.
 - `notifications/manager.py` — a placa não notifica.
 - Disco (spec 2), registro e rodapé (spec 4), bandeja (spec 5).
 - Empacotamento em `.exe` — spec 7.

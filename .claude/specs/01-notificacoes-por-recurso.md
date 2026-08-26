@@ -3,7 +3,7 @@
 **Ordem:** 1 de 7
 **Depende de:** nenhuma
 **Score:** 5
-**Revisão:** pendente
+**Revisão:** aprovada
 
 ## O que faz
 
@@ -62,11 +62,42 @@ libera espaço em disco):
 
 ### O tipo Recurso
 
-- `Recurso` passa a reunir, para cada recurso: nome interno, rótulo exibido, textos de
-  cartão por status, título e corpo de notificação, formato do valor numérico, e se varre
-  processos.
+**Redesenhado no `/spec-review` de 25/08/2026.** A primeira versão tinha só nome, rótulo,
+textos, formato e "se varre processos" — e as specs 2, 3 e 6 pediam quatro coisas que ela não
+comportava. Como os quatro consumidores já estão escritos, o formato abaixo atende todos.
+
+`Recurso` reúne, para cada recurso:
+
+- **Nome interno e rótulo exibido** — `"cpu"` e "CPU"; `"placa_video"` e "Placa de vídeo".
+- **Função de classificação própria.** Cada recurso aponta para a sua: CPU e RAM usam
+  `classificar()`, Temperatura usa `classificar_temperatura()`, Disco usará
+  `classificar_disco()` (spec 2) e a placa de vídeo `classificar_placa_video()` (spec 6).
+  Sem isso, `app.py` precisaria de um desvio por recurso — que é exatamente o que esta spec
+  existe para eliminar.
+- **Textos de cartão por status, com variantes por causa.** O par status→texto não basta:
+  o Disco em Alerta tem **duas** redações, uma por falta de espaço e outra por desgaste do
+  hardware. O campo é indexado por status **e** por causa, com uma causa padrão para os
+  recursos que só têm uma.
+- **Título e corpo de notificação, com as mesmas variantes por causa** — pelo mesmo motivo.
+- **Se o recurso notifica.** Marcador próprio, não inferido de texto vazio. A placa de vídeo
+  (spec 6) nunca notifica porque nunca chega a Alerta, e isso precisa ser declarado, não
+  deduzido.
+- **Se o recurso varre processos.** Só CPU e RAM.
+- **Formato do valor numérico**, podendo incluir rótulo antes do número — "74%", "~66°C",
+  "C: — 91%" (spec 2). O Disco precisa nomear a unidade pior; o formato é da entrada, não
+  de código específico em `app.py`.
+- **Se o cartão pode sumir.** Recurso cuja leitura falhou desaparece da tela em vez de exibir
+  erro. Vale para a placa de vídeo (spec 6) quando o contador não existe. A montagem dos
+  cartões passa a ser **condicional**, não fixa.
+
+Consequências:
+
 - Os três dicionários paralelos de `app.py` (rastreadores, notificadores, cartões) passam a
-  ser derivados dessa fonte única. Acrescentar um recurso passa a ser uma entrada, não três.
+  ser derivados dessa fonte única. Acrescentar um recurso passa a ser **uma entrada**, não
+  três — e `app.py` deixa de conhecer recurso por nome.
+- O **pior status entre os recursos** (que a spec 5 consome para colorir o ícone da bandeja)
+  é calculado percorrendo esta coleção, **não** em `app.py` — o CLAUDE.md proíbe lógica de
+  negócio ali. Recurso indisponível (cartão sumido) fica **fora** da conta do pior status.
 
 ### Notificação de temperatura junto com a de CPU
 
@@ -95,14 +126,25 @@ libera espaço em disco):
 - [ ] Um teste comprova que, sem programa identificável, a notificação ainda dispara e o
       corpo não contém lacuna vazia
 - [ ] Um teste comprova que Disco e Temperatura não disparam varredura de processos
+- [ ] Um teste comprova que o Disco tem **duas** variantes de Alerta (falta de espaço e
+      desgaste) e que cada causa seleciona o texto certo
+- [ ] Um teste comprova que um recurso marcado como "não notifica" não dispara notificação
+      em nenhum status
+- [ ] Um teste comprova que a montagem dos cartões é condicional: recurso indisponível não
+      gera cartão e fica fora do cálculo do pior status
+- [ ] Um teste comprova que cada recurso usa a própria função de classificação
 - [ ] Um teste comprova que o cartão do Disco usa os textos próprios, não os de CPU/RAM
 - [ ] A frase de alerta de CPU/RAM existe em **um** lugar do código — busca por
       "Sobrecarga de memória/processamento" não retorna duas definições fora de teste
 
 ## Módulos afetados
 
-- `hardware/recursos.py` — **novo**. O tipo `Recurso` e a coleção dos quatro recursos, com
-  textos, formato de valor e se varre processos.
+- `recursos.py` — **novo, na raiz do projeto** (não em `hardware/`). O tipo `Recurso`, a
+  coleção dos quatro recursos e o cálculo do pior status entre eles.
+  **Fica fora de `hardware/` por decisão do `/spec-review`:** ele carrega textos de
+  interface, e o CLAUDE.md proíbe misturar lógica de hardware com lógica de UI. `Recurso`
+  é entidade de domínio (ver `_dominio.md`) e é consumido pelas duas camadas — a raiz é o
+  lugar que não mente sobre isso.
 - `hardware/processos.py` — **novo**. Varredura sob demanda: soma por nome, exclui
   `System Idle Process`, normaliza acima de 100%, devolve o dominante ou nada.
 - `hardware/thresholds.py` — os textos de cartão saem dos dicionários soltos e passam a vir
@@ -111,7 +153,7 @@ libera espaço em disco):
   dominante; título e corpo saem de `Recurso` em vez da constante fixa. A duplicação da
   frase com `thresholds.py` acaba.
 - `ui/app.py` — os três dicionários paralelos passam a ser montados a partir de `Recurso`.
-- `tests/hardware/test_recursos.py` — **novo**.
+- `tests/test_recursos.py` — **novo**.
 - `tests/hardware/test_processos.py` — **novo**, com `psutil` mockado.
 - `tests/hardware/test_thresholds.py` — ganha os testes dos textos do Disco.
 - `tests/notifications/test_manager.py` — ganha os testes de título e corpo por recurso.
@@ -154,6 +196,12 @@ libera espaço em disco):
   arquivos para resolver defeito de hardware. Como todo texto é desta spec, o texto novo
   entrou aqui em vez de vazar para a spec 2. Feito antes de qualquer implementação, custo
   zero.
+- **`Recurso` redesenhado no `/spec-review`** → a primeira versão não comportava o que as
+  specs 2, 3 e 6 pediam: classificador próprio, variantes de texto por causa, marcador de
+  "não notifica" e cartão que some. O usuário escolheu redesenhar agora em vez de deixar
+  cada spec seguinte mexer em `app.py`, pelo critério dele: escolher o que impede
+  retrabalho. Paga-se uma vez em vez de quatro — e é raro poder desenhar a abstração com
+  todos os consumidores já escritos, em vez de adivinhar.
 - Aplicadas sem perguntar, por já estarem em `_decisoes.md`: varredura sob demanda e não por
   ciclo; nomear quem consome sem acusar; notificação só em alerta.
 
@@ -162,7 +210,7 @@ libera espaço em disco):
 - **Textos da interface** → a seção "CPU / RAM (e Disco, até a spec 2 dar textos próprios a
   ele)" passa a ser só "CPU / RAM"; ganha bloco próprio do Disco com os três textos; ganha a
   tabela de títulos e corpos de notificação.
-- **Estrutura real do projeto** → acrescentar `hardware/recursos.py` e `hardware/processos.py`,
+- **Estrutura real do projeto** → acrescentar `recursos.py` (raiz) e `hardware/processos.py`,
   mais os dois arquivos de teste novos; atualizar a contagem de testes.
 - **Decisões arquiteturais importantes** → remover o "DEFEITO CONHECIDO, conserta na spec 1"
   sobre a notificação única, que deixa de existir; acrescentar a decisão do tipo `Recurso`

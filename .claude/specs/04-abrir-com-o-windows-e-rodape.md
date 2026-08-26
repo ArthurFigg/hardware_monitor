@@ -2,8 +2,8 @@
 
 **Ordem:** 4 de 7
 **Depende de:** nenhuma (independente das specs 1, 2 e 3 — toca outros arquivos)
-**Score:** 4
-**Revisão:** pendente
+**Score:** 5
+**Revisão:** aprovada
 
 ## O que faz
 
@@ -25,11 +25,14 @@ própria janela; e o rodapé mostra há quanto tempo a máquina está ligada.
   Todas as 10 entradas já presentes nesta máquina usam alguma variação de silencioso
   (`-silent`, `--minimized`, `--background`), e o app segue a convenção.
 - Quando aberto normalmente pelo usuário, abre como hoje: janela visível.
+- O argumento que a entrada do registro passa é **`--minimizado`** (português, como o resto
+  do código). O `.exe` da spec 7 precisa aceitar exatamente esse.
 
 ### Quando escrever no registro falha
 
 - Quando a escrita falha (antivírus bloqueando, política corporativa), o interruptor
-  **volta sozinho para desmarcado** e uma linha aparece explicando que não foi possível.
+  **volta sozinho para desmarcado** e aparece a linha: "Não foi possível ativar. Algum
+  programa de segurança pode estar bloqueando."
 - Isso é diferente da regra geral do projeto de "leitura que falha esconde a si mesma":
   aqui não é leitura, é uma **ação que a pessoa pediu**. Falhar em silêncio deixaria a caixa
   marcada e o app não abriria no boot seguinte — a pessoa só descobriria pela ausência.
@@ -72,21 +75,29 @@ própria janela; e o rodapé mostra há quanto tempo a máquina está ligada.
 
 ## Módulos afetados
 
-- `hardware/inicializacao.py` — **novo**. Lê, escreve e remove a entrada da chave `Run` do
-  `HKCU`; resolve o caminho do executável em tempo de execução; devolve falha em vez de
-  levantar erro.
+- `sistema/inicializacao.py` — **novo, fora de `hardware/`**. Lê, escreve e remove a entrada
+  da chave `Run` do `HKCU`; **resolve o caminho do executável em tempo de execução, cobrindo
+  os dois modos** (desenvolvimento e empacotado); devolve falha em vez de levantar erro.
+  **Fora de `hardware/` por decisão do `/spec-review`:** mexer no registro do Windows é
+  integração com o sistema operacional, não coleta de hardware.
+- `sistema/estado.py` — **novo**. Guarda em `%LOCALAPPDATA%` o pouco estado que o app
+  precisa lembrar entre execuções. Nesta spec ele nasce vazio de conteúdo próprio (o
+  interruptor é lido do registro), mas a spec 5 precisa dele para a mensagem de primeira
+  vez — criar aqui evita que a spec 5 invente persistência por conta.
 - `hardware/collector.py` — passa a expor o instante de boot da máquina (`psutil.boot_time()`).
 - `ui/app.py` — ganha o interruptor "Abrir junto com o Windows" no cabeçalho, ao lado do botão
   de tema; ganha a linha de uptime no rodapé; ganha a linha de aviso quando a escrita falha.
 - `main.py` — passa a aceitar abrir minimizado quando iniciado pela entrada do registro.
-- `tests/hardware/test_inicializacao.py` — **novo**, com `winreg` mockado.
+- `tests/sistema/test_inicializacao.py` — **novo**, com `winreg` mockado. Cobre os **dois**
+  ramos de resolução de caminho: desenvolvimento e empacotado.
+- `tests/sistema/test_estado.py` — **novo**.
 - `tests/ui/test_app.py` — ganha os testes do interruptor e do rodapé.
 
 ## Não mexer
 
 - **Bandeja e minimizar para a bandeja** — spec 5. Aqui, "minimizado" quer dizer na barra de
   tarefas. Fechar a janela continua encerrando o app até a spec 5 mudar isso.
-- `hardware/recursos.py`, `processos.py` — spec 1.
+- `recursos.py` (raiz), `hardware/processos.py` — spec 1.
 - `hardware/discos.py` e a medição de disco — spec 2.
 - `hardware/desempenho.py` e o aviso de calor — spec 3.
 - Leitura da placa de vídeo — spec 6.
@@ -120,11 +131,15 @@ própria janela; e o rodapé mostra há quanto tempo a máquina está ligada.
 
 ## Impacto no CLAUDE.md
 
+- **Persistência de estado** → a seção diz que o estado do interruptor vai para
+  `%LOCALAPPDATA%`; na verdade o interruptor **não tem estado próprio** (a entrada no
+  registro é o estado). Corrigir a redação e citar o que de fato vai para `%LOCALAPPDATA%`:
+  o `sistema/estado.py`, que a spec 5 usa para a mensagem de primeira vez.
 - **Ciclo de vida da janela (a implementar na spec 4)** → deixa de ser "a implementar" na parte
   de abrir com o Windows e subir minimizado. A parte de fechar para a bandeja continua
   pendente, agora apontando para a spec 5.
-- **Estrutura real do projeto** → acrescentar `hardware/inicializacao.py` e
-  `tests/hardware/test_inicializacao.py`; atualizar a contagem de testes.
+- **Estrutura real do projeto** → acrescentar o pacote `sistema/` (`inicializacao.py`, `estado.py`) e
+  `tests/sistema/`; atualizar a contagem de testes.
 - **Melhorias — ver `aprovados.txt`** → a lista passa de 6 para 7 specs (a 4 foi dividida em
   registro/rodapé e bandeja); marcar a spec 4 como especificada.
 - **UI/UX** → acrescentar o interruptor de inicialização e a linha de uptime como elementos da

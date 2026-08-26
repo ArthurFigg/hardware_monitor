@@ -3,7 +3,7 @@
 **Ordem:** 2 de 7
 **Depende de:** 01-notificacoes-por-recurso (usa os textos e o tipo `Recurso` definidos lá)
 **Score:** 5
-**Revisão:** pendente
+**Revisão:** aprovada
 
 ## O que faz
 
@@ -28,6 +28,9 @@ percentual ocupado e espaço livre, e avisar quando um disco físico dá sinais 
 
 ### Como o status é decidido
 
+- O Disco **continua passando pelo `RastreadorAlerta`**, como hoje: o Alerta é confirmado
+  após 5 segundos contínuos. Espaço em disco não oscila por segundo, então a janela é
+  inofensiva — e mudar isso seria alteração de comportamento que ninguém pediu.
 - O status do Disco é o **pior** entre todas as unidades que passaram no filtro. Uma unidade
   em Alerta leva o cartão a Alerta, mesmo que as outras estejam em Normal.
 - Cada unidade é classificada pelo **pior dos dois critérios**, o que acontecer primeiro:
@@ -97,8 +100,10 @@ percentual ocupado e espaço livre, e avisar quando um disco físico dá sinais 
   descrição, vazia por padrão. Quando vazia, o cartão fica idêntico ao de hoje. Esta spec é
   dona dessa mudança porque vem antes; a spec 3 reusa a mesma linha para o aviso de redução
   de velocidade por calor.
-- `ui/app.py` — o cartão do Disco passa a exibir a unidade pior e, quando houver, a linha
-  de desgaste.
+- `recursos.py` — a entrada do Disco ganha o formato de valor com o nome da unidade
+  ("C: — 91%") e a causa que seleciona a variante de texto (falta de espaço ou desgaste).
+  **Não** é `ui/app.py`: com o `Recurso` redesenhado pela spec 1, o cartão do Disco é
+  derivado da entrada, e `app.py` não conhece recurso por nome.
 - `tests/ui/test_cards.py` — ganha os testes da linha extra: ausente por padrão, exibida
   quando preenchida.
 - `tests/hardware/test_discos.py` — **novo**, com `psutil` e a consulta de saúde mockados.
@@ -107,9 +112,12 @@ percentual ocupado e espaço livre, e avisar quando um disco físico dá sinais 
 
 ## Não mexer
 
-- **Todos os textos** — são da spec 1, inclusive o de desgaste. Esta spec detecta o estado;
-  a spec 1 diz o que se fala sobre ele.
-- `hardware/recursos.py` e `hardware/processos.py` — criados pela spec 1.
+- **Todos os textos** — são da spec 1, inclusive o de desgaste. Esta spec detecta o estado e
+  fornece os dados (nome da unidade, GB livres, nome do disco); a spec 1 diz o que se fala
+  sobre ele e define onde esses dados entram na frase.
+- `ui/app.py` — não deve ser tocado. Se for necessário, é sinal de que o `Recurso` da
+  spec 1 ficou incompleto.
+- `recursos.py` (raiz) e `hardware/processos.py` — criados pela spec 1.
 - `notifications/manager.py` — a spec 1 já resolveu a notificação por recurso.
 - Os limites de CPU, RAM e Temperatura — a correção de temperatura é da spec 3.
 - Qualquer leitura via PDH (calor, placa de vídeo) — specs 3 e 6.

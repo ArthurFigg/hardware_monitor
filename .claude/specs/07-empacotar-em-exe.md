@@ -4,7 +4,7 @@
 **Depende de:** 04-abrir-com-o-windows-e-rodape (o registro aponta para este executável),
 05-icone-na-bandeja (`pystray` e `Pillow` entram no que será empacotado)
 **Score:** 2
-**Revisão:** pendente
+**Revisão:** aprovada
 
 ## O que faz
 
@@ -91,8 +91,11 @@ internet** — os dois comportamentos que mais pesam contra um executável desco
   quebra o empacotamento quando esquecido.
 - Arquivo de identificação de versão — **novo**. Nome do produto, autor, versão, descrição.
 - `assets/icone.ico` — **novo**. Ícone do executável.
-- `main.py` — passa a se reconhecer empacotado, para o resto do app resolver caminhos
-  corretamente.
+- `main.py` — passa a aceitar o argumento `--minimizado` que a entrada do registro envia.
+  **A detecção de "estou empacotado" NÃO é desta spec:** ela mora em
+  `sistema/inicializacao.py`, criada pela spec 4, que já cobre os dois ramos com teste.
+  Esta spec apenas **verifica** que o ramo empacotado funciona de verdade. Antes, as duas
+  reivindicavam a mesma detecção e nenhuma a definia.
 - `pyproject.toml` — acrescenta o PyInstaller como dependência de **desenvolvimento**, não de
   produção.
 - Documentação do processo de release: como gerar o `.exe` e o passo de enviar o arquivo para
