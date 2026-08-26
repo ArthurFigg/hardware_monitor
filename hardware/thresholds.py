@@ -17,19 +17,6 @@ class Status(Enum):
     ALERTA = "alerta"
 
 
-DESCRICOES = {
-    Status.NORMAL: "Desempenho estável. O sistema está operando com folga.",
-    Status.ATENCAO: "Carga moderada. Vários processos estão exigindo recursos da máquina.",
-    Status.ALERTA: "Sobrecarga de memória/processamento. Feche aplicativos inativos para evitar travamentos.",
-}
-
-DESCRICOES_TEMPERATURA = {
-    Status.NORMAL: "Temperatura dentro do esperado. O processador está operando com segurança.",
-    Status.ATENCAO: "Temperatura elevada. Verifique a ventilação do computador.",
-    Status.ALERTA: "Temperatura crítica. Feche aplicativos pesados e verifique o sistema de resfriamento.",
-}
-
-
 def classificar(percentual: float) -> Status:
     if percentual >= LIMITE_ALERTA:
         return Status.ALERTA
@@ -48,14 +35,6 @@ def classificar_temperatura(celsius: float) -> Status:
 
 def estimar_temperatura(cpu: float) -> float:
     return _TEMP_IDLE + (cpu / 100) * (_TEMP_CARGA_MAXIMA - _TEMP_IDLE)
-
-
-def descricao(status: Status) -> str:
-    return DESCRICOES[status]
-
-
-def descricao_temperatura(status: Status) -> str:
-    return DESCRICOES_TEMPERATURA[status]
 
 
 class RastreadorAlerta:

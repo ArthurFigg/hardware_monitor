@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 import customtkinter as ctk
 
-from hardware.thresholds import Status, descricao
+from hardware.thresholds import Status
 from ui.components.semaphore import Semaforo
 
 
@@ -11,13 +11,13 @@ class CartaoRecurso(ctk.CTkFrame):
         self,
         master,
         titulo: str,
-        descricao_fn: Callable[[Status], str] | None = None,
+        descricao_fn: Callable[[Status], str],
         formatar_valor: Callable[[float], str] | None = None,
         **kwargs,
     ):
         super().__init__(master, corner_radius=12, **kwargs)
         self._status_atual = Status.NORMAL
-        self._descricao_fn = descricao_fn or descricao
+        self._descricao_fn = descricao_fn
         self._formatar_valor = formatar_valor or (lambda v: f"{v:.0f}%")
 
         self._semaforo = Semaforo(self, tamanho=32)

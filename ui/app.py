@@ -3,14 +3,10 @@ import threading
 import customtkinter as ctk
 
 from hardware.collector import coletar
-from hardware.thresholds import (
-    RastreadorAlerta,
-    classificar,
-    classificar_temperatura,
-    descricao_temperatura,
-    estimar_temperatura,
-)
+from hardware.processos import programa_dominante
+from hardware.thresholds import RastreadorAlerta, Status
 from notifications.manager import GerenciadorNotificacoes
+from recursos import RECURSOS, pior_status
 from ui.components.cards import CartaoRecurso
 
 
@@ -27,29 +23,20 @@ class AplicativoMonitor(ctk.CTkFrame):
         self._rodando = True
         self._dados_pendentes = None
         self._lock = threading.Lock()
-        self._rastreadores = {
-            "cpu": RastreadorAlerta(),
-            "ram": RastreadorAlerta(),
-            "disco": RastreadorAlerta(),
-            "temperatura": RastreadorAlerta(),
-        }
-        self._notificadores = {
-            "cpu": GerenciadorNotificacoes(),
-            "ram": GerenciadorNotificacoes(),
-            "disco": GerenciadorNotificacoes(),
-            "temperatura": GerenciadorNotificacoes(),
-        }
+        self._status_atual: dict[str, Status] = {}
+
+        self._rastreadores = {r.nome: RastreadorAlerta() for r in RECURSOS}
+        self._notificadores = {r.nome: GerenciadorNotificacoes(r) for r in RECURSOS}
         self._cards = {
-            "cpu": CartaoRecurso(self, titulo="CPU"),
-            "ram": CartaoRecurso(self, titulo="RAM"),
-            "disco": CartaoRecurso(self, titulo="Disco"),
-            "temperatura": CartaoRecurso(
+            r.nome: CartaoRecurso(
                 self,
-                titulo="Temperatura",
-                descricao_fn=descricao_temperatura,
-                formatar_valor=lambda v: f"~{v:.0f}°C",
-            ),
+                titulo=r.rotulo,
+                descricao_fn=r.descricao,
+                formatar_valor=r.formatar_valor,
+            )
+            for r in RECURSOS
         }
+
         self._botao_tema = ctk.CTkButton(
             self,
             text="Modo Claro",
@@ -62,12 +49,43 @@ class AplicativoMonitor(ctk.CTkFrame):
         self._iniciar_coleta()
         self._agendar_atualizacao()
 
+    @property
+    def pior_status_atual(self) -> Status:
+        """O status mais grave entre os recursos disponíveis.
+
+        Calculado em `recursos.py`; aqui só se lê. É o que a bandeja (spec 5) consome.
+        """
+        return pior_status(self._status_atual.values())
+
     def _organizar(self) -> None:
         self.grid_columnconfigure(0, weight=1)
         for i, card in enumerate(self._cards.values()):
             pady = (20, 0) if i == 0 else (8, 0)
             card.grid(row=i, column=0, padx=20, pady=pady, sticky="ew")
-        self._botao_tema.grid(row=4, column=0, pady=16)
+        self._botao_tema.grid(row=len(self._cards), column=0, pady=16)
+
+    def _esconder_card(self, recurso) -> None:
+        """Recurso sem leitura some da tela e sai da conta do pior status.
+
+        Só vale para quem declarou `pode_sumir`: um recurso que sempre existe e
+        falhou é problema de coleta, não motivo para a tela mudar sozinha.
+        """
+        self._status_atual.pop(recurso.nome, None)
+        if recurso.pode_sumir:
+            self._cards[recurso.nome].grid_remove()
+
+    def _mostrar_card(self, recurso) -> None:
+        card = self._cards[recurso.nome]
+        if recurso.pode_sumir and not card.winfo_manager():
+            card.grid()
+
+    def cards_visiveis(self) -> list[str]:
+        """Quais recursos estão na tela agora. Existe para o teste poder verificar.
+
+        Usa `winfo_manager()` e não `winfo_ismapped()`: o segundo só é verdadeiro com a
+        janela de fato visível, e nos testes a raiz nunca é exibida.
+        """
+        return [nome for nome, card in self._cards.items() if card.winfo_manager()]
 
     def _iniciar_coleta(self) -> None:
         thread = threading.Thread(target=self._loop_coleta, daemon=True)
@@ -91,18 +109,32 @@ class AplicativoMonitor(ctk.CTkFrame):
             self.after(self._INTERVALO_VERIFICACAO_MS, self._agendar_atualizacao)
 
     def _atualizar_cards(self, dados) -> None:
-        mapeamento = {"cpu": dados.cpu, "ram": dados.ram, "disco": dados.disco}
-        for recurso, percentual in mapeamento.items():
-            status_bruto = classificar(percentual)
-            status = self._rastreadores[recurso].atualizar(status_bruto)
-            self._cards[recurso].atualizar(status, percentual)
-            self._notificadores[recurso].processar(status)
+        for recurso in RECURSOS:
+            valor = recurso.extrair(dados)
+            if valor is None:
+                self._esconder_card(recurso)
+                continue
 
-        temp_estimada = estimar_temperatura(dados.cpu)
-        status_bruto = classificar_temperatura(temp_estimada)
-        status = self._rastreadores["temperatura"].atualizar(status_bruto)
-        self._cards["temperatura"].atualizar(status, temp_estimada)
-        self._notificadores["temperatura"].processar(status)
+            self._mostrar_card(recurso)
+
+            status_bruto = recurso.classificar(valor)
+            status = self._rastreadores[recurso.nome].atualizar(status_bruto)
+            self._status_atual[recurso.nome] = status
+            self._cards[recurso.nome].atualizar(status, valor)
+
+            programa, consumo = self._identificar_programa(recurso, status)
+            self._notificadores[recurso.nome].processar(
+                status, programa=programa, valor=consumo
+            )
+
+    def _identificar_programa(self, recurso, status: Status):
+        """Varre só no momento do alerta, e só para quem tem programa associado."""
+        if status != Status.ALERTA or not recurso.varre_processos:
+            return None, None
+        dominante = programa_dominante(recurso.nome)
+        if dominante is None:
+            return None, None
+        return dominante
 
     def _alternar_tema(self) -> None:
         if ctk.get_appearance_mode() == "Dark":

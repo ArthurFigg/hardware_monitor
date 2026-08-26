@@ -6,7 +6,14 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ### Adicionado
-- Nada ainda. As 7 specs da v2 estão aprovadas e aguardando implementação.
+- O aviso de sobrecarga agora diz qual programa está consumindo a máquina, com o
+  percentual — em vez de só apontar que algo está pesado
+
+### Corrigido
+- O aviso de temperatura crítica falava em "sobrecarga de memória" e mandava fechar
+  aplicativos; agora fala de temperatura e manda verificar a ventilação
+- O cartão de Disco parou de sugerir fechar programas para resolver falta de espaço,
+  e passou a ter textos próprios
 
 ## [1.0.0] — 2026-08-25
 

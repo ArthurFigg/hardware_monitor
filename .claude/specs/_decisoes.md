@@ -104,3 +104,20 @@ sistema é mockada, e é exatamente essa a regra de testes do projeto.
 útil: CI vermelho por causa de chamada real ao sistema significa teste que não deveria existir.
 O que não é testável assim (ícone da bandeja, superaquecimento físico, contador em outra
 máquina) já está declarado como verificação manual.
+
+## Um lugar só descreve cada recurso, e a tela não conhece recurso por nome
+
+**Contexto:** o app vigia CPU, RAM, Disco e Temperatura, e vai ganhar mais. Antes, cada um
+aparecia em três dicionários paralelos dentro da tela — um de rastreadores, um de
+notificadores, um de cartões. Acrescentar um recurso exigia lembrar dos três, e esquecer um
+não quebrava teste nenhum: a coisa só sumia da tela em silêncio.
+**Decisão:** cada recurso é descrito uma vez, em `recursos.py` na raiz — com a própria função
+de classificação, os textos de cartão e de notificação, se notifica, se varre processos, o
+formato do valor e se o cartão pode sumir. A tela percorre essa coleção e não tem nome de
+recurso escrito em lugar nenhum. Acrescentar recurso passa a ser uma entrada.
+**Descartado:** manter os dicionários e acrescentar mais um a cada spec — mais barato agora e
+pago quatro vezes depois.
+**Custo aceito:** o arquivo fica na raiz, e não em `hardware/` nem em `ui/`, porque carrega
+texto de interface e regra de classificação ao mesmo tempo. Quem procurar por camada não
+acha de primeira.
+

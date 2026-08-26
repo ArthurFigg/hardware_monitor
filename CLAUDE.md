@@ -29,7 +29,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (61 testes, todos passando):
+Para rodar os testes (97 testes, todos passando):
 
 ```
 uv run pytest -v
@@ -42,6 +42,7 @@ hardware_monitor/
 ├── hardware/
 │   ├── __init__.py
 │   ├── collector.py      — DadosHardware dataclass + coletar()
+│   ├── processos.py      — varredura sob demanda: quem está consumindo CPU/RAM
 │   └── thresholds.py     — Status enum, classificar(), classificar_temperatura(),
 │                           estimar_temperatura(), descricao(), descricao_temperatura(),
 │                           RastreadorAlerta
@@ -68,6 +69,7 @@ hardware_monitor/
 │   │   └── test_semaphore.py   — 5 testes
 │   └── notifications/
 │       └── test_manager.py     — 5 testes (mock plyer)
+├── recursos.py           — Recurso: fonte única do que o app vigia e do que ele diz
 ├── main.py               — cria CTk root, instancia AplicativoMonitor, chama mainloop()
 ├── aprovados.txt         — fila da v2: as 6 specs, com os achados tecnicos de cada uma
 ├── ideias.txt            — historico da triagem, incluindo o que foi recusado e por que
@@ -91,7 +93,8 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
 - Thread de coleta usa `coletar()` com `interval=1` (bloqueia 1s) + loop contínuo. A UI puxa os dados a cada 100ms via `after()`.
 - `RastreadorAlerta` em `thresholds.py` (não em `app.py`) porque é regra de negócio: confirma ALERTA só após 5s contínuos acima do limite.
 - `GerenciadorNotificacoes` tem estado (`_notificado`) para não repetir a notificação enquanto o recurso permanece em ALERTA.
-- **DEFEITO CONHECIDO, conserta na spec 1:** `manager.py` tem uma única mensagem fixa (`_MENSAGEM_ALERTA`), e `app.py` cria um notificador para os quatro recursos. Quando a **Temperatura** estoura, o usuário recebe um aviso dizendo "sobrecarga de memória/processamento" — assunto errado. E essa frase é cópia literal do texto de Alerta de CPU/RAM: a mesma string vive em `manager.py` e em `DESCRICOES`, e mudar uma não muda a outra. A spec 1 deve dar mensagem própria aos **quatro** recursos e acabar com a duplicação.
+- **`recursos.py` na raiz é a fonte única do que o app vigia e do que ele diz.** Cada `Recurso` carrega: função de classificação própria, textos de cartão e de notificação (com variantes por causa — o Disco tem duas redações de Alerta), se notifica, se varre processos, formato do valor e se o cartão pode sumir. `app.py` monta cartões, rastreadores e notificadores percorrendo essa coleção e **não conhece nenhum recurso por nome**. Acrescentar um recurso é uma entrada, não três.
+- O **pior status** entre os recursos é calculado em `recursos.py`, nunca em `app.py`. Recurso indisponível fica de fora da conta e o cartão dele some da tela.
 - Temperatura é **estimada** a partir do % de CPU (`estimar_temperatura(cpu)`): idle=35°C, carga máxima=85°C. Consequência a não esquecer: o card de Temperatura **não carrega informação independente** — é o % de CPU escrito em outra unidade. Por isso os pontos de corte dos dois precisam ficar alinhados (ver Thresholds), e por isso a spec 3 importa: o aviso de redução por calor é o primeiro sinal real que esse card ganha. Não usa WMI nem sensor real — leitura de sensor no Windows exige driver de kernel (admin) e não é viável sem dependência externa.
 - `CartaoRecurso` aceita `descricao_fn` e `formatar_valor` para suportar textos e formatos diferentes por recurso sem duplicar o componente.
 
@@ -114,10 +117,28 @@ O Alerta continua em 80°C (CPU 90%) de propósito, com a CPU ficando vermelha a
 **Disco (a mudar na spec 2 — este é o aviso exigido acima):** hoje o Disco não tem threshold próprio. Ele passa pelo mesmo `classificar()` de CPU e RAM (60/85) e herda o mesmo texto, o que produz conselho errado: disco 87% cheio manda "feche aplicativos inativos", e fechar programa não libera espaço em disco. A **spec 1** é dona de todos os textos do Disco — ela é dona de tudo que o app diz. A **spec 2** cria `classificar_disco()` e decide o limiar. Textos e medição foram separados de propósito: o texto não depende do limite.
 
 ## Textos da interface (usar exatamente esses, sem alterar tom)
-CPU / RAM (e Disco, até a spec 2 dar textos próprios a ele):
+
+**Origem única: `recursos.py` na raiz.** Nenhuma frase é escrita em `manager.py` nem em
+`thresholds.py` — há teste que varre o projeto e falha se alguma for duplicada.
+
+CPU / RAM:
 - Normal: "Desempenho estável. O sistema está operando com folga."
 - Atenção: "Carga moderada. Vários processos estão exigindo recursos da máquina."
 - Alerta: "Sobrecarga de memória/processamento. Feche aplicativos inativos para evitar travamentos."
+
+Disco:
+- Normal: "Espaço em disco suficiente. Não há risco no momento."
+- Atenção: "Espaço em disco diminuindo. Vale apagar arquivos que você não usa mais."
+- Alerta por falta de espaço: "Espaço em disco acabando. Apague arquivos grandes ou mova para outro lugar."
+- Alerta por desgaste: "Disco com sinais de desgaste. Faça uma cópia dos seus arquivos importantes."
+
+Notificações (título + corpo), uma por recurso:
+- CPU: "CPU em sobrecarga" / "{programa} está usando {N}% da CPU. Feche programas que não estiver usando."
+- RAM: "Memória em sobrecarga" / mesma frase, trocando CPU por memória
+- Disco (espaço): "Espaço em disco acabando" / "Apague arquivos grandes ou mova para outro lugar."
+- Disco (desgaste): "Disco com sinais de desgaste" / "Faça uma cópia dos seus arquivos importantes."
+- Temperatura: "Temperatura crítica" / "O processador está muito quente. Feche programas pesados e verifique a ventilação."
+- Sem programa identificado, o corpo sai só com a frase de ação — nunca com lacuna vazia.
 
 Temperatura:
 - Normal: "Temperatura dentro do esperado. O processador está operando com segurança."
@@ -140,7 +161,7 @@ Temperatura:
 A lista solta que existia aqui foi substituída pela triagem de 25/08/2026. Não reintroduzir itens aqui: `aprovados.txt` é a fila, `ideias.txt` é o histórico.
 
 As 7 specs aprovadas, na ordem:
-1. Notificações que dizem qual recurso e qual programa
+1. ~~Notificações que dizem qual recurso e qual programa~~ — **concluída em 2026-08-26**
 2. Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos
 3. Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)
 4. Abrir com o Windows e uptime no rodapé
@@ -288,8 +309,8 @@ todas devem ser resolvidas na etapa de setup, antes da primeira spec.
   `tests/hardware/test_thresholds.py`) são *strings* — os textos da interface — e formatador
   não quebra string. Ficam para a **spec 1**, que move esses textos para `recursos.py` e já os
   escreve quebrados. Quebrar antes seria refazer depois.
-- **Dois construtores passam de 20 linhas:** `ui/app.py.__init__` (44) e
-  `ui/components/cards.py.__init__` (35). O do `app.py` vai crescer: a spec 4 acrescenta o
+- **Dois construtores passam de 20 linhas:** `ui/app.py.__init__` (**35**, era 44 — encolheu
+  com a troca dos três dicionários pelo `Recurso`) e `ui/components/cards.py.__init__` (35). O do `app.py` vai crescer: a spec 4 acrescenta o
   interruptor de inicialização e a spec 5 acrescenta o card de GPU. Extrair a montagem dos
   cards e dos notificadores antes que as specs piorem o quadro.
 - ~~Dependências sem teto de versão~~ → **resolvido em 26/08/2026**: as três de produção e as

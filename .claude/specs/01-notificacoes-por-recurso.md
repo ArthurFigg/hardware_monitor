@@ -218,3 +218,6 @@ Consequências:
 - **Melhorias — ver `aprovados.txt`** → marcar a spec 1 como especificada.
 - **Qualidade — dívidas conhecidas** → o construtor de `ui/app.py` deve encolher com a troca
   dos três dicionários; reavaliar o item ao fechar a spec.
+
+---
+**Status:** concluida em 2026-08-26
