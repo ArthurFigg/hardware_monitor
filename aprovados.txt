@@ -33,6 +33,15 @@ Arquivos: notifications/manager.py, ui/app.py, hardware/collector.py
 A1. Notificacao especifica por recurso
     Hoje a mensagem e generica. Passa a dizer qual recurso estourou:
     "CPU em sobrecarga", "Memoria em sobrecarga".
+
+    OS QUATRO RECURSOS, nao so CPU e RAM (achado na 3a auditoria do CLAUDE.md,
+    25/08/2026): manager.py tem UMA mensagem fixa (_MENSAGEM_ALERTA) e app.py cria um
+    notificador para cpu, ram, disco E temperatura. Hoje, quando a TEMPERATURA estoura,
+    o usuario recebe "sobrecarga de memoria/processamento" — assunto errado.
+    Disco cheio tem o mesmo problema (ver spec 2).
+    ACABAR COM A DUPLICACAO: essa frase e copia literal do texto de Alerta de CPU/RAM que
+    ja existe em DESCRICOES (thresholds.py). A mesma string em dois arquivos; mudar uma
+    nao muda a outra. A mensagem da notificacao deve sair de uma fonte so.
     DECIDIDO: NAO dispara no estado Atencao. 60-84% acontece em uso normal e viraria
     ruido que faz o usuario desligar as notificacoes. Alerta (85% por 5s) ja e o
     filtro certo.
@@ -122,6 +131,21 @@ A5. Aviso de disco com desgaste
 SPEC 3 — AVISO DE CALOR FREANDO O PROCESSADOR
 Arquivos: hardware/collector.py (modulo novo de leitura PDH), thresholds.py, ui/app.py
 ===============================================================================
+
+A0. CORRIGIR O LIMIAR DE TEMPERATURA ATENCAO: 60 C -> 65 C
+    Achado na auditoria do CLAUDE.md em 25/08/2026.
+    A temperatura e derivada do % de CPU, entao cada valor corresponde a um percentual exato:
+      60 C = CPU 50%  |  65 C = CPU 60%  |  80 C = CPU 90%
+    Com 60 C, o card de Temperatura acendia em CPU 50% — ANTES do card de CPU (60%).
+    Toda carga entre 50% e 59% mostrava amarelo na Temperatura com a CPU em verde:
+    parece maquina esquentando sem motivo, e corroi a confianca no semaforo.
+    65 C alinha os dois.
+    O Alerta FICA em 80 C (CPU 90%) de proposito: a CPU fica vermelha antes, aos 85%, e
+    temperatura atrasada em relacao a carga e fisicamente correto. O defeito era estar
+    adiantada.
+    Mexe em LIMITE_TEMP_ATENCAO (thresholds.py) e nos testes de limite de
+    test_thresholds.py. Aprovado pelo usuario — os thresholds sao "nunca alterar sem
+    avisar", e o aviso foi dado.
 
 A4. "Seu processador diminuiu a velocidade para nao esquentar"
     Mostra o efeito real do calor, melhor que o °C estimado que o app ja exibe.
