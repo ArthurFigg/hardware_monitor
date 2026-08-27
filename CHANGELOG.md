@@ -5,6 +5,8 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+## [2.0.0] — 2026-08-26
+
 ### Adicionado
 - O aviso de sobrecarga agora diz qual programa está consumindo a máquina, com o
   percentual — em vez de só apontar que algo está pesado

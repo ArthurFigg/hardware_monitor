@@ -144,7 +144,7 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
 - `GerenciadorNotificacoes` tem estado (`_notificado`) para não repetir a notificação enquanto o recurso permanece em ALERTA.
 - **`recursos.py` na raiz é a fonte única do que o app vigia e do que ele diz.** Cada `Recurso` carrega: função de classificação própria, textos de cartão e de notificação (com variantes por causa — o Disco tem duas redações de Alerta), se notifica, se varre processos, formato do valor e se o cartão pode sumir. `app.py` monta cartões, rastreadores e notificadores percorrendo essa coleção e **não conhece nenhum recurso por nome**. Acrescentar um recurso é uma entrada, não três.
 - O **pior status** entre os recursos é calculado em `recursos.py`, nunca em `app.py`. Recurso indisponível fica de fora da conta e o cartão dele some da tela.
-- Temperatura é **estimada** a partir do % de CPU (`estimar_temperatura(cpu)`): idle=35°C, carga máxima=85°C. Consequência a não esquecer: o card de Temperatura **não carrega informação independente** — é o % de CPU escrito em outra unidade. Por isso os pontos de corte dos dois precisam ficar alinhados (ver Thresholds), e por isso a spec 3 importa: o aviso de redução por calor é o primeiro sinal real que esse card ganha. Não usa WMI nem sensor real — leitura de sensor no Windows exige driver de kernel (admin) e não é viável sem dependência externa.
+- Temperatura é **estimada** a partir do % de CPU (`estimar_temperatura(cpu)`): idle=35°C, carga máxima=85°C. Consequência a não esquecer: o card de Temperatura **não carrega informação independente** — é o % de CPU escrito em outra unidade. Por isso os pontos de corte dos dois ficam alinhados (ver Thresholds), e por isso o aviso de redução de velocidade por calor, entregue na spec 3, é o primeiro sinal **real** que esse card carrega — o único dado dele que não vem do percentual de CPU. Não usa WMI nem sensor real — leitura de sensor no Windows exige driver de kernel (admin) e não é viável sem dependência externa.
 - `CartaoRecurso` aceita `descricao_fn` e `formatar_valor` para suportar textos e formatos diferentes por recurso sem duplicar o componente.
 - **O Disco olha todas as unidades fixas, e o status do cartão é o pior entre elas.**
   Unidade removível, de rede, de CD e qualquer uma com menos de 10 GB de tamanho total
@@ -555,15 +555,17 @@ todas devem ser resolvidas na etapa de setup, antes da primeira spec.
 
 - ~~`ruff` configurado mas não instalado~~ → **resolvido em 26/08/2026**: `ruff>=0.16.4,<0.17.0`
   entrou como dependência de desenvolvimento e rodou.
-- ~~10 linhas passam de 88 caracteres~~ → **5, em 26/08/2026**. O `ruff format` resolveu as
-  outras 5. As restantes (4 em `hardware/thresholds.py`, 1 em
-  `tests/hardware/test_thresholds.py`) são *strings* — os textos da interface — e formatador
-  não quebra string. Ficam para a **spec 1**, que move esses textos para `recursos.py` e já os
-  escreve quebrados. Quebrar antes seria refazer depois.
-- **Dois construtores passam de 20 linhas:** `ui/app.py.__init__` (**35**, era 44 — encolheu
-  com a troca dos três dicionários pelo `Recurso`) e `ui/components/cards.py.__init__` (35). O do `app.py` vai crescer: a spec 4 acrescenta o
-  interruptor de inicialização e a spec 5 acrescenta o card de GPU. Extrair a montagem dos
-  cards e dos notificadores antes que as specs piorem o quadro.
+- **30 linhas passam de 88 caracteres** (medido em 26/08/2026, no fim da v2). Delas, 17 são
+  *strings* e 3 são comentários — formatador não quebra nenhum dos dois. Sobram **10 linhas
+  de código**, em `pdh.py`, `placa_video.py`, `thresholds.py`, `inicializacao.py`, `app.py` e
+  `bandeja.py`. Vale saber por que o `ruff check` passa mesmo assim: a regra de linha longa
+  (E501) **não está no conjunto padrão**, e o `line-length = 88` só orienta o formatador.
+  Quem quiser tratar isso como erro precisa ligar a regra explicitamente.
+- **Os construtores couberam.** Ao fim da v2, `ui/app.py.__init__` tem 26 linhas (era 44) e
+  `ui/components/cards.py.__init__` tem 21 (era 35) — as extrações feitas ao longo das specs
+  4, 5 e 6 absorveram o interruptor, a bandeja e o cartão de placa de vídeo sem inchar
+  nenhum dos dois. Seguem pouco acima das 20 linhas de referência, ambos como sequências
+  diretas de construção, sem ramificação.
 - ~~Dependências sem teto de versão~~ → **resolvido em 26/08/2026**: as três de produção e as
   duas de desenvolvimento têm teto.
 
@@ -608,3 +610,11 @@ Regra: **lógica coberta, fronteira mockada.**
   clicar). O que fica de fora é a chamada ao Windows que desenha o ícone.
 - Não criar teste que dependa do hardware desta máquina. Num app distribuído, teste que só
   passa aqui é teste que mente para quem baixar.
+
+---
+**Encerrado em:** 2026-08-26
+**Versão:** v2.0.0
+**Testes:** 363 passando
+**Specs concluídas:** 7 de 7 (a spec 2 passou por uma revisão)
+**Commits:** 21
+**Período:** 2026-05-17 a 2026-08-26 (4 dias ativos)
