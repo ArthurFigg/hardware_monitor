@@ -28,6 +28,10 @@ _ERRO_SUCESSO = 0
 _PDH_INVALID_DATA = 0xC0000BC6
 _PDH_CSTATUS_INVALID_DATA = 0xC0000BBA
 
+# A primeira chamada de leitura em vetor não traz dados: ela só informa de quanto
+# buffer o Windows precisa. Não é falha.
+_PDH_MORE_DATA = 0x800007D2
+
 _TAMANHO_NOME = 1024
 
 
@@ -36,6 +40,25 @@ class _ValorContador(ctypes.Structure):
         ("CStatus", wintypes.DWORD),
         ("doubleValue", ctypes.c_double),
     ]
+
+
+class _ItemContador(ctypes.Structure):
+    """Um par nome-valor do vetor devolvido por um contador com curinga."""
+
+    _fields_ = [
+        ("szName", wintypes.LPWSTR),
+        ("FmtValue", _ValorContador),
+    ]
+
+
+def _codigo(retorno: int) -> int:
+    """Código de erro do PDH como número sem sinal.
+
+    O `ctypes` devolve os códigos altos como negativos — `PDH_MORE_DATA` chega como
+    -2147481646. Sem a máscara, nenhuma comparação com as constantes casa, e uma leitura
+    que funcionou parece vazia.
+    """
+    return retorno & 0xFFFFFFFF
 
 
 def _carregar():
@@ -171,11 +194,111 @@ class Contador:
         resultado = _pdh.PdhGetFormattedCounterValue(
             self._contador, _PDH_FMT_DOUBLE, None, ctypes.byref(valor)
         )
-        if resultado & 0xFFFFFFFF in (_PDH_INVALID_DATA, _PDH_CSTATUS_INVALID_DATA):
+        if _codigo(resultado) in (_PDH_INVALID_DATA, _PDH_CSTATUS_INVALID_DATA):
             return None
         if resultado != _ERRO_SUCESSO:
             return None
         return valor.doubleValue
+
+    def fechar(self) -> None:
+        if _pdh is not None and self._consulta is not None:
+            _pdh.PdhCloseQuery(self._consulta)
+        self._consulta = None
+        self._contador = None
+        self.ok = False
+
+
+class ContadorVetor:
+    """Contador com curinga na instância: devolve vários pares nome-valor por leitura.
+
+    Existe separado do `Contador` porque a API é outra — `PdhGetFormattedCounterArrayW`
+    em vez de `PdhGetFormattedCounterValue`, com duas chamadas por leitura: a primeira
+    diz de quanto buffer o Windows precisa, a segunda preenche.
+
+    O nome vem em inglês por `PdhAddEnglishCounterW`. Nem todo contador é traduzido — o
+    de placa de vídeo não é, e buscar o nome local devolve vazio.
+    """
+
+    def __init__(self, caminho_ingles: str):
+        self._caminho = caminho_ingles
+        self._consulta = None
+        self._contador = None
+        self._primeira_leitura = True
+        self.ok = False
+        try:
+            self._abrir()
+        except OSError:
+            self.ok = False
+
+    def _abrir(self) -> None:
+        if _pdh is None:
+            return
+
+        consulta = wintypes.HANDLE()
+        if _pdh.PdhOpenQueryW(None, 0, ctypes.byref(consulta)) != _ERRO_SUCESSO:
+            return
+        self._consulta = consulta
+
+        alca = wintypes.HANDLE()
+        resultado = _pdh.PdhAddEnglishCounterW(
+            consulta, self._caminho, 0, ctypes.byref(alca)
+        )
+        if resultado != _ERRO_SUCESSO:
+            _pdh.PdhCloseQuery(consulta)
+            self._consulta = None
+            return
+
+        self._contador = alca
+        self.ok = True
+        _pdh.PdhCollectQueryData(consulta)
+
+    def ler(self) -> list[tuple[str, float]] | None:
+        """Pares (instância, valor), ou None quando não há leitura válida.
+
+        A primeira chamada é descartada, como em qualquer contador de taxa: a amostra de
+        abertura fica a microssegundos desta e a diferença entre elas não significa nada.
+        """
+        if not self.ok or _pdh is None:
+            return None
+        if self._primeira_leitura:
+            self._primeira_leitura = False
+            return None
+        try:
+            return self._ler_vetor()
+        except (OSError, ValueError):
+            return None
+
+    def _ler_vetor(self) -> list[tuple[str, float]] | None:
+        if _pdh.PdhCollectQueryData(self._consulta) != _ERRO_SUCESSO:
+            return None
+
+        tamanho = wintypes.DWORD(0)
+        quantidade = wintypes.DWORD(0)
+        resultado = _pdh.PdhGetFormattedCounterArrayW(
+            self._contador,
+            _PDH_FMT_DOUBLE,
+            ctypes.byref(tamanho),
+            ctypes.byref(quantidade),
+            None,
+        )
+        if _codigo(resultado) != _PDH_MORE_DATA or quantidade.value == 0:
+            return None
+
+        buffer = ctypes.create_string_buffer(tamanho.value)
+        resultado = _pdh.PdhGetFormattedCounterArrayW(
+            self._contador,
+            _PDH_FMT_DOUBLE,
+            ctypes.byref(tamanho),
+            ctypes.byref(quantidade),
+            ctypes.byref(buffer),
+        )
+        if _codigo(resultado) != _ERRO_SUCESSO:
+            return None
+
+        itens = ctypes.cast(
+            buffer, ctypes.POINTER(_ItemContador * quantidade.value)
+        ).contents
+        return [(item.szName or "", item.FmtValue.doubleValue) for item in itens]
 
     def fechar(self) -> None:
         if _pdh is not None and self._consulta is not None:

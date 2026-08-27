@@ -18,6 +18,9 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   não esquentar — sem mudar de cor nem notificar, porque não há o que fazer a respeito
 - Ícone ao lado do relógio, colorido pelo estado geral da máquina; fechar a janela agora
   esconde o app ali em vez de encerrá-lo, e o menu do ícone tem Abrir e Sair
+- Cartão de placa de vídeo, com o mesmo número que o Gerenciador de Tarefas mostra. Só
+  fica amarelo quando a placa passa de 95% de forma sustentada — jogo pesado é uso
+  esperado, não problema — e nunca fica vermelho
 - Interruptor para abrir o app junto com o Windows, já minimizado e sem roubar a tela no
   boot; desmarcar desfaz, e se algo bloquear a mudança o app diz o que aconteceu
 - O rodapé mostra há quanto tempo o computador está ligado

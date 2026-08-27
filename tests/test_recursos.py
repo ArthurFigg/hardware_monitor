@@ -1,12 +1,14 @@
 import recursos
 from hardware.collector import DadosHardware
 from hardware.discos import LeituraDisco, Unidade
+from hardware.placa_video import LeituraPlaca
 from hardware.thresholds import Status
 from recursos import (
     CAUSA_DESGASTE,
     CAUSA_ESPACO,
     CPU,
     DISCO,
+    PLACA_VIDEO,
     RAM,
     RECURSOS,
     TEMPERATURA,
@@ -253,3 +255,39 @@ def test_notificacao_de_desgaste_nao_fala_de_espaco():
         Status.ALERTA, causa=CAUSA_DESGASTE, leitura=leitura
     )
     assert "GB" not in corpo
+
+
+def test_placa_de_video_esta_entre_os_recursos():
+    assert PLACA_VIDEO in RECURSOS
+
+
+def test_placa_de_video_nao_notifica():
+    """Ela nunca chega a Alerta, e notificação só existe em Alerta."""
+    assert PLACA_VIDEO.texto_notificacao(Status.ALERTA) is None
+
+
+def test_placa_de_video_nao_notifica_em_atencao():
+    assert PLACA_VIDEO.texto_notificacao(Status.ATENCAO) is None
+
+
+def test_placa_de_video_nao_varre_processos():
+    """O cartão diz quanto a placa está sendo usada, não por quem."""
+    assert not PLACA_VIDEO.varre_processos
+
+
+def test_cartao_da_placa_pode_sumir():
+    assert PLACA_VIDEO.pode_sumir
+
+
+def test_placa_de_video_formata_em_percentual():
+    assert PLACA_VIDEO.formatar_valor(LeituraPlaca(uso=23.4)) == "23%"
+
+
+def test_placa_de_video_sem_texto_de_alerta():
+    """Sem texto de Alerta porque ela nunca chega lá — e degrada em vez de quebrar."""
+    assert Status.ALERTA not in PLACA_VIDEO.descricoes
+
+
+def test_placa_no_limite_manda_baixar_a_qualidade():
+    texto = PLACA_VIDEO.descricao(Status.ATENCAO)
+    assert "qualidade gráfica" in texto

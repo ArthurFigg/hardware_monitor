@@ -166,3 +166,7 @@ número que o Gerenciador de Tarefas exibe, não estimativa.
   contador de placa de vídeo (não é traduzido; código negativo no `ctypes`; precisa de duas
   coletas) e a agregação pelo maior tipo de motor.
 - **Melhorias — ver `aprovados.txt`** → marcar a spec 6 como especificada.
+
+
+---
+**Status:** concluida em 2026-08-26

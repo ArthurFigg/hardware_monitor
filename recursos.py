@@ -14,6 +14,7 @@ from hardware.thresholds import (
     Status,
     classificar,
     classificar_disco,
+    classificar_placa_video,
     classificar_temperatura,
     estimar_temperatura,
     mais_grave,
@@ -349,7 +350,28 @@ TEMPERATURA = Recurso(
     },
 )
 
-RECURSOS: tuple[Recurso, ...] = (CPU, RAM, DISCO, TEMPERATURA)
+PLACA_VIDEO = Recurso(
+    nome="placa_video",
+    rotulo="Placa de vídeo",
+    classificar=classificar_placa_video,
+    extrair=lambda dados: dados.placa,
+    formatar_valor=lambda leitura: f"{getattr(leitura, 'uso', 0.0):.0f}%",
+    # Nunca chega a Alerta, então não notifica: notificação só existe em Alerta. E some
+    # da tela quando o contador não responde — sem leitura não há número para mostrar.
+    notifica=False,
+    pode_sumir=True,
+    descricoes={
+        Status.NORMAL: {
+            CAUSA_PADRAO: "Placa de vídeo tranquila. Há folga para jogos e vídeos."
+        },
+        Status.ATENCAO: {
+            CAUSA_PADRAO: "Placa de vídeo no limite. Se um jogo estiver engasgando, "
+            "diminua a qualidade gráfica."
+        },
+    },
+)
+
+RECURSOS: tuple[Recurso, ...] = (CPU, RAM, DISCO, TEMPERATURA, PLACA_VIDEO)
 
 
 def por_nome(nome: str) -> Recurso:

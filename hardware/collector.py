@@ -3,8 +3,9 @@ from dataclasses import dataclass
 
 import psutil
 
-from hardware import desempenho, discos
+from hardware import desempenho, discos, placa_video
 from hardware.discos import LeituraDisco
+from hardware.placa_video import LeituraPlaca
 
 
 @dataclass
@@ -14,6 +15,7 @@ class DadosHardware:
     disco: LeituraDisco
     velocidade: float | None = None
     reduzindo: bool = False
+    placa: LeituraPlaca | None = None
 
 
 def segundos_ligado() -> float | None:
@@ -45,4 +47,5 @@ def coletar() -> DadosHardware:
         disco=discos.ler(),
         velocidade=velocidade,
         reduzindo=desempenho.confirmar_reducao(cpu, velocidade),
+        placa=placa_video.ler(),
     )

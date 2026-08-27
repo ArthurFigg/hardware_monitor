@@ -24,10 +24,9 @@ A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 
 - `ideias.txt` — histórico completo, incluindo o que foi recusado e por quê
 
 A triagem falava em 6 specs; o `/spec` gerou **7** — a fila real está em `.claude/specs/`.
-As specs 1 a 5 foram concluídas em 26/08/2026 (a 2 foi reaberta e revisada no mesmo dia,
-para o cartão de Disco trocar de unidade por clique). Restam duas, aprovadas pelo
-`/spec-review`: a próxima é a **06 — cartão de placa de vídeo**, seguida da
-**07 — empacotar em `.exe`**.
+As specs 1 a 6 foram concluídas em 26/08/2026 (a 2 foi reaberta e revisada no mesmo dia,
+para o cartão de Disco trocar de unidade por clique). Resta a **07 — empacotar em `.exe`**,
+aprovada pelo `/spec-review`.
 
 Para rodar:
 
@@ -35,7 +34,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (317 testes, todos passando):
+Para rodar os testes (361 testes, todos passando):
 
 ```
 uv run pytest -v
@@ -52,8 +51,10 @@ hardware_monitor/
 │   ├── discos.py         — unidades fixas (filtros de removível/rede/CD e de <10 GB) +
 │                           saúde dos discos físicos via Get-PhysicalDisk, com cache de 6h
 │   ├── pdh.py            — contadores de desempenho do Windows via ctypes; nome resolvido
-│                           por índice, com queda para o inglês. A spec 6 importa sem editar
+│                           por índice, com queda para o inglês. `Contador` lê um valor;
+│                           `ContadorVetor` lê instâncias com curinga
 │   ├── desempenho.py     — % Processor Performance + LeituraTemperatura e a regra de calor
+│   ├── placa_video.py    — GPU Engine: agrega por placa e tipo de motor, pega o maior
 │   └── thresholds.py     — Status enum, classificar(), classificar_temperatura(),
 │                           estimar_temperatura(), descricao(), descricao_temperatura(),
 │                           classificar_unidade(), classificar_disco(), mais_grave(),
@@ -77,6 +78,7 @@ hardware_monitor/
 │   │   ├── test_desempenho.py  — 11 testes (pdh mockado)
 │   │   ├── test_discos.py      — 33 testes (mock psutil e PowerShell)
 │   │   ├── test_pdh.py         — 16 testes (pdh.dll mockada)
+│   │   ├── test_placa_video.py — 21 testes (leitura PDH mockada)
 │   │   ├── test_processos.py   — 8 testes (mock psutil)
 │   │   └── test_thresholds.py  — 46 testes (limites, textos, temperatura, disco,
 │   │                             calor, RastreadorAlerta)
@@ -173,6 +175,21 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
   atualização dos cartões quanto a do rodapé checam isso **na entrada**, não só na hora de
   reagendar: sem essa checagem, um callback já agendado ainda dispara depois do fechamento e
   escreve em widget em destruição.
+- **O contador de placa de vídeo tem três armadilhas, todas verificadas nesta máquina.**
+  (1) Ele **não é traduzido**: `nome_por_indice` devolve `None` mesmo num Windows em
+  português, então a queda para o nome em inglês é o caminho único, não precaução.
+  (2) A função que lê o vetor devolve o código **como número negativo** no `ctypes` —
+  `PDH_MORE_DATA` chega como -2147481646; sem `& 0xFFFFFFFF` nenhuma comparação casa e a
+  leitura funcionando parece vazia. (3) Precisa de **duas coletas** antes do primeiro valor.
+- **O uso da placa é o maior motor, agrupando por placa física E tipo.** Somar as 336
+  instâncias daria acima de 100%; somar só por tipo juntaria o motor 3D da placa integrada
+  com o da dedicada — e **esta máquina tem duas** (`0x00010327_phys_0` e
+  `0x00011E36_phys_0`), então o exagero é real, não hipotético. Processos que dividem o
+  mesmo motor somam entre si; placas diferentes nunca.
+- **`RastreadorAlerta` confirma qualquer status, não só o ALERTA.** O padrão continua sendo
+  vigiar ALERTA e cair para ATENCAO enquanto espera; a placa de vídeo pede o mesmo para o
+  ATENCAO dela, porque nunca chega a Alerta e sem isso o cartão piscaria amarelo a cada pico
+  de um segundo.
 - **A velocidade real do processador vem de uma consulta PDH persistente**, aberta uma
   vez e reaproveitada, com o nome do contador resolvido pelo **número** (`Processor
   Information` = 2610, `% Processor Performance` = 2660). Confirmado nesta máquina: o nome
@@ -220,6 +237,15 @@ muda o status nem dispara notificação — é linha extra no cartão de Tempera
 condições são obrigatórias porque o contador também cai com o PC ocioso, e ali a queda é
 economia de energia. O 90% é fundamentado e não medido (não dá para provocar superaquecimento
 real): é o primeiro número a ajustar se o aviso nunca aparecer ou aparecer demais.
+
+**Placa de vídeo — implementado na spec 6 em 26/08/2026.** Atenção **acima de 95%**
+(`> 95`) sustentado por 5 segundos. **Nunca chega a Alerta.**
+
+Não "corrigir" para 60/85 por consistência — a inconsistência é proposital. Placa em 100%
+durante um jogo é o esperado; com os limites de CPU e RAM o cartão ficaria amarelo o jogo
+inteiro e vermelho sem nada errado. O único caso em que o número significa algo para este
+público é a placa no limite de forma sustentada, que explica o jogo engasgando e tem ação
+clara: baixar a qualidade gráfica. Não há vermelho porque não há emergência nem ação urgente.
 
 **Disco — implementado na spec 2 em 26/08/2026.** Tem limiares próprios, e dois de cada
 tipo. Cada unidade é classificada pelo **pior dos dois critérios**, o que acontecer primeiro:
@@ -283,7 +309,9 @@ Temperatura:
 ## UI/UX
 - Estilo minimalista, sem bordas pesadas ou gráficos de linha
 - Suporte a Light Mode e Dark Mode com botão toggle
-- Valor numérico exibido em todos os cards: percentual (%) para CPU/RAM/Disco, temperatura estimada (~°C) para Temperatura
+- **Cinco cartões:** CPU, RAM, Disco, Temperatura e Placa de vídeo.
+- Valor numérico exibido em todos os cards: percentual (%) para CPU/RAM/Disco e Placa de
+  vídeo, temperatura estimada (~°C) para Temperatura
 - **Cartão que troca de conteúdo por clique mostra a mãozinha do cursor, e só quando há
   para onde ir.** Cursor de mão em cartão que não faz nada é promessa que a tela não
   cumpre — vale para o Disco numa máquina com uma unidade só.
@@ -302,7 +330,7 @@ As 7 specs aprovadas, na ordem:
 3. ~~Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)~~ — **concluída em 2026-08-26**
 4. ~~Abrir com o Windows e uptime no rodapé~~ — **concluída em 2026-08-26**
 5. ~~Ícone na bandeja, com minimizar para lá~~ — **concluída em 2026-08-26**
-6. Cartão de placa de vídeo com uso real (usa o mecanismo da spec 3)
+6. ~~Cartão de placa de vídeo com uso real (usa o mecanismo da spec 3)~~ — **concluída em 2026-08-26**
 7. Empacotar em `.exe` (depende do caminho definido na spec 4)
 
 Depois delas, como projeto à parte: histórico persistente e resumo das últimas N horas.
@@ -479,7 +507,8 @@ todas devem ser resolvidas na etapa de setup, antes da primeira spec.
 - **`ConfirmadorSustentado` e `RastreadorAlerta` implementam a mesma janela de tempo**, um
   sobre `bool` e outro sobre `Status`. Duplicação consciente: unificar é mexer em código de
   outra spec que funciona, e a regra do projeto manda perguntar antes de refatorar.
-- **`tests/ui/test_app.py` leva vários minutos.** Cada teste sobe a thread de coleta real,
+- **`tests/ui/test_app.py` domina o tempo da suite** (de 4 para ~9 minutos entre as specs
+  4 e 6). Cada teste sobe a thread de coleta real,
   que roda em laço apertado com o `coletar()` mockado até `_rodando` virar falso. Resolver
   é mexer na fixture e afeta todos os testes de UI — decidir separado.
 - **Texto de interface mora em três lugares agora:** `recursos.py` (textos de recurso),

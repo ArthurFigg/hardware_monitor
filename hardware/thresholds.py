@@ -20,6 +20,13 @@ LIMITE_TEMP_ALERTA = 80.0
 LIMITE_CARGA_REDUCAO = 85.0
 LIMITE_VELOCIDADE_REDUCAO = 90.0
 
+# Placa de vídeo em 100% durante um jogo é o esperado — é para estar assim. Usar os 60 e
+# 85 de CPU e RAM deixaria o cartão amarelo o jogo inteiro e vermelho sem nada errado. O
+# único caso em que o número significa algo para este público é a placa no limite de forma
+# sustentada, que explica o jogo engasgando e tem ação clara: baixar a qualidade gráfica.
+# Não mudar para 60/85 "por consistência": a inconsistência aqui é proposital.
+LIMITE_PLACA_ATENCAO = 95.0
+
 # O disco tem limites próprios, e dois de cada tipo. Percentual sozinho avisa tarde no
 # disco pequeno (95% de 120 GB deixa 6 GB, e o Windows já não atualiza com isso) e cedo
 # no grande (95% de 1 TB deixa 50 GB, que é folga). Vale o que acontecer primeiro.
@@ -119,6 +126,20 @@ def mais_grave(statuses) -> Status:
     return max(presentes, key=lambda s: _GRAVIDADE[s])
 
 
+def placa_no_limite(uso: float) -> bool:
+    """Acima de 95%, e não a partir de 95%: em 95 redondo ainda há folga."""
+    return uso > LIMITE_PLACA_ATENCAO
+
+
+def classificar_placa_video(leitura) -> Status:
+    """Status do cartão da placa. **Nunca** chega a Alerta.
+
+    Placa no limite não é emergência e não tem ação urgente — por isso não existe
+    vermelho aqui. `no_limite` já vem com a confirmação de 5 segundos aplicada na coleta.
+    """
+    return Status.ATENCAO if getattr(leitura, "no_limite", False) else Status.NORMAL
+
+
 def classificar_temperatura(celsius: float) -> Status:
     if celsius >= LIMITE_TEMP_ALERTA:
         return Status.ALERTA
@@ -131,20 +152,36 @@ def estimar_temperatura(cpu: float) -> float:
     return _TEMP_IDLE + (cpu / 100) * (_TEMP_CARGA_MAXIMA - _TEMP_IDLE)
 
 
-class RastreadorAlerta:
-    """Garante que ALERTA só seja confirmado após sustentado pelo tempo mínimo."""
+# Para o que cada status cai enquanto a confirmação não vem.
+_ENQUANTO_ESPERA = {Status.ALERTA: Status.ATENCAO, Status.ATENCAO: Status.NORMAL}
 
-    def __init__(self, atraso: float = 5.0):
+
+class RastreadorAlerta:
+    """Confirma um status só depois dele se manter pelo tempo mínimo.
+
+    Por padrão vigia o ALERTA e devolve ATENCAO enquanto espera, que é o comportamento
+    de sempre. A placa de vídeo pede o mesmo para o ATENCAO dela, porque nunca chega a
+    Alerta — e sem isso o cartão piscaria amarelo a cada pico de um segundo.
+    """
+
+    def __init__(
+        self,
+        atraso: float = 5.0,
+        confirmar: Status = Status.ALERTA,
+        enquanto_espera: Status | None = None,
+    ):
         self._atraso = atraso
+        self._confirmar = confirmar
+        self._enquanto_espera = enquanto_espera or _ENQUANTO_ESPERA[confirmar]
         self._inicio: float | None = None
 
     def atualizar(self, status: Status) -> Status:
         agora = time.monotonic()
-        if status == Status.ALERTA:
+        if status == self._confirmar:
             if self._inicio is None:
                 self._inicio = agora
             if (agora - self._inicio) < self._atraso:
-                return Status.ATENCAO
-            return Status.ALERTA
+                return self._enquanto_espera
+            return self._confirmar
         self._inicio = None
         return status

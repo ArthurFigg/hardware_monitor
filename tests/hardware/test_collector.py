@@ -4,7 +4,9 @@ import pytest
 
 from hardware.collector import DadosHardware, coletar, segundos_ligado
 from hardware.discos import LeituraDisco, Unidade
+from hardware.placa_video import LeituraPlaca
 
+_PLACA = LeituraPlaca(uso=12.0)
 _LEITURA = LeituraDisco(
     unidades=(Unidade(ponto="C:", percentual=30.0, livre_gb=300.0),)
 )
@@ -19,6 +21,7 @@ def hardware_simulado():
         patch(
             "hardware.collector.desempenho.velocidade_processador", return_value=118.0
         ),
+        patch("hardware.collector.placa_video.ler", return_value=_PLACA),
     ):
         ram.return_value = MagicMock(percent=60.0)
         yield ram, disco
@@ -67,3 +70,7 @@ def test_segundos_ligado_indisponivel_devolve_none():
     """Leitura que falha esconde a linha do rodapé, nunca quebra a janela."""
     with patch("hardware.collector.psutil.boot_time", side_effect=OSError):
         assert segundos_ligado() is None
+
+
+def test_coletar_traz_a_leitura_da_placa():
+    assert coletar().placa is _PLACA

@@ -18,12 +18,18 @@ def _disco(percentual=30.0, livre_gb=300.0, desgastado=None):
 
 
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
-def test_monitor_tem_quatro_cards(_, raiz):
+def test_monitor_tem_cinco_cards(_, raiz):
     from ui.app import AplicativoMonitor
 
     app = AplicativoMonitor(raiz)
     app._rodando = False
-    assert set(app._cards.keys()) == {"cpu", "ram", "disco", "temperatura"}
+    assert set(app._cards.keys()) == {
+        "cpu",
+        "ram",
+        "disco",
+        "temperatura",
+        "placa_video",
+    }
 
 
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
@@ -36,6 +42,7 @@ def test_monitor_cards_titulos_corretos(_, raiz):
     assert app._cards["ram"]._label_titulo.cget("text") == "RAM"
     assert app._cards["disco"]._label_titulo.cget("text") == "Disco"
     assert app._cards["temperatura"]._label_titulo.cget("text") == "Temperatura"
+    assert app._cards["placa_video"]._label_titulo.cget("text") == "Placa de vídeo"
 
 
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
@@ -840,3 +847,76 @@ def test_aviso_de_esconder_some_quando_a_janela_volta(_, raiz):
         tela.app._mostrar_janela()
         raiz.update_idletasks()
         assert not tela.app._label_aviso_esconde.winfo_manager()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_cartao_da_placa_aparece_com_leitura(_, raiz):
+    from hardware.placa_video import LeituraPlaca
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    dados = DadosHardware(
+        cpu=10.0, ram=20.0, disco=_disco(), placa=LeituraPlaca(uso=23.0)
+    )
+    app._atualizar_cards(dados)
+    raiz.update_idletasks()
+    assert "placa_video" in app.cards_visiveis()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_contador_indisponivel_esconde_o_cartao_da_placa(_, raiz):
+    """Sem leitura nenhuma não há número para mostrar — o cartão inteiro some."""
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_disco(), placa=None))
+    raiz.update_idletasks()
+    assert "placa_video" not in app.cards_visiveis()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_placa_indisponivel_nao_derruba_os_outros_cartoes(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_disco(), placa=None))
+    raiz.update_idletasks()
+    assert app.cards_visiveis() == ["cpu", "ram", "disco", "temperatura"]
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_placa_no_limite_deixa_o_icone_amarelo(_, raiz):
+    """A placa entra na conta do pior status, mas nunca leva o ícone a vermelho."""
+    from hardware.placa_video import LeituraPlaca
+
+    with _app_com_bandeja(raiz) as tela:
+        dados = DadosHardware(
+            cpu=10.0,
+            ram=20.0,
+            disco=_disco(),
+            placa=LeituraPlaca(uso=99.0, no_limite=True),
+        )
+        tela.app._atualizar_cards(dados)
+        assert tela.bandeja.atualizar.call_args.args[0] == Status.ATENCAO
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_placa_nao_dispara_notificacao(_, raiz):
+    from hardware.placa_video import LeituraPlaca
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._notificadores["placa_video"] = MagicMock()
+    dados = DadosHardware(
+        cpu=10.0,
+        ram=20.0,
+        disco=_disco(),
+        placa=LeituraPlaca(uso=100.0, no_limite=True),
+    )
+    app._atualizar_cards(dados)
+    titulo = app._notificadores["placa_video"].processar
+    assert titulo.call_args.args[0] != Status.ALERTA

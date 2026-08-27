@@ -3,15 +3,18 @@ from unittest.mock import patch
 import pytest
 
 from hardware.discos import LeituraDisco, Unidade
+from hardware.placa_video import LeituraPlaca
 from hardware.thresholds import (
     ConfirmadorSustentado,
     RastreadorAlerta,
     Status,
     classificar,
     classificar_disco,
+    classificar_placa_video,
     classificar_temperatura,
     classificar_unidade,
     estimar_temperatura,
+    placa_no_limite,
     reduzindo_por_calor,
 )
 
@@ -189,3 +192,53 @@ def test_condicao_que_some_reinicia_a_contagem():
     confirmador.atualizar(False)
     with patch("hardware.thresholds.time.monotonic", return_value=1e9):
         assert not confirmador.atualizar(True)
+
+
+def test_placa_acima_de_95_esta_no_limite():
+    assert placa_no_limite(96.0)
+
+
+def test_placa_em_95_redondo_ainda_tem_folga():
+    assert not placa_no_limite(95.0)
+
+
+def test_placa_no_limite_classifica_em_atencao():
+    assert classificar_placa_video(LeituraPlaca(uso=99.0, no_limite=True)) == (
+        Status.ATENCAO
+    )
+
+
+def test_placa_fora_do_limite_e_normal():
+    assert classificar_placa_video(LeituraPlaca(uso=40.0, no_limite=False)) == (
+        Status.NORMAL
+    )
+
+
+def test_placa_nunca_chega_a_alerta():
+    """Placa no limite não é emergência e não tem ação urgente — não existe vermelho."""
+    em_todos = [
+        classificar_placa_video(LeituraPlaca(uso=u, no_limite=True))
+        for u in (96.0, 99.0, 100.0)
+    ]
+    assert Status.ALERTA not in em_todos
+
+
+def test_rastreador_generalizado_preserva_o_comportamento_do_alerta():
+    """O padrão continua sendo vigiar ALERTA e cair para ATENCAO enquanto espera."""
+    assert RastreadorAlerta(atraso=5.0).atualizar(Status.ALERTA) == Status.ATENCAO
+
+
+def test_rastreador_pode_vigiar_a_atencao():
+    rastreador = RastreadorAlerta(atraso=5.0, confirmar=Status.ATENCAO)
+    assert rastreador.atualizar(Status.ATENCAO) == Status.NORMAL
+
+
+def test_rastreador_confirma_a_atencao_depois_do_tempo():
+    rastreador = RastreadorAlerta(atraso=0.0, confirmar=Status.ATENCAO)
+    assert rastreador.atualizar(Status.ATENCAO) == Status.ATENCAO
+
+
+def test_rastreador_de_atencao_deixa_o_alerta_passar_direto():
+    """Quem vigia ATENCAO não segura ALERTA — status que não é o vigiado passa inteiro."""
+    rastreador = RastreadorAlerta(atraso=5.0, confirmar=Status.ATENCAO)
+    assert rastreador.atualizar(Status.ALERTA) == Status.ALERTA
