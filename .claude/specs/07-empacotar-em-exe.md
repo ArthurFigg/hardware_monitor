@@ -145,3 +145,7 @@ internet** — os dois comportamentos que mais pesam contra um executável desco
   e `assets/icone.ico`.
 - **Melhorias — ver `aprovados.txt`** → marcar a spec 7 como especificada; com ela, todas as 7
   specs da v2 estão especificadas e o ciclo está pronto para o `/spec-review`.
+
+
+---
+**Status:** concluida em 2026-08-26

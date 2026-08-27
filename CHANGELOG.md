@@ -21,6 +21,9 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Cartão de placa de vídeo, com o mesmo número que o Gerenciador de Tarefas mostra. Só
   fica amarelo quando a placa passa de 95% de forma sustentada — jogo pesado é uso
   esperado, não problema — e nunca fica vermelho
+- O app virou um programa único que roda em qualquer Windows, sem precisar instalar nada
+  antes. Na primeira execução o Windows mostra um aviso de segurança: é preciso clicar em
+  "Mais informações" e "Executar assim mesmo", uma vez só
 - Interruptor para abrir o app junto com o Windows, já minimizado e sem roubar a tela no
   boot; desmarcar desfaz, e se algo bloquear a mudança o app diz o que aconteceu
 - O rodapé mostra há quanto tempo o computador está ligado

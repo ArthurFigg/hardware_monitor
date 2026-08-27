@@ -15,6 +15,7 @@ Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, 
 - pystray 0.19.5 — ícone na bandeja do sistema
 - Pillow 12.3.0 — desenha a imagem do ícone da bandeja
 - pytest 9.0.3 — testes
+- pyinstaller 6.22.2 — empacotamento em `.exe` (desenvolvimento)
 - uv — gerenciador de dependências (`uv run`, `uv add`)
 
 ## Estado atual — v2 em andamento: 1 spec de 7 concluída
@@ -24,9 +25,12 @@ A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 
 - `ideias.txt` — histórico completo, incluindo o que foi recusado e por quê
 
 A triagem falava em 6 specs; o `/spec` gerou **7** — a fila real está em `.claude/specs/`.
-As specs 1 a 6 foram concluídas em 26/08/2026 (a 2 foi reaberta e revisada no mesmo dia,
-para o cartão de Disco trocar de unidade por clique). Resta a **07 — empacotar em `.exe`**,
-aprovada pelo `/spec-review`.
+**As 7 specs da v2 estão concluídas** (26/08/2026). A spec 2 foi reaberta e revisada no
+mesmo dia, para o cartão de Disco trocar de unidade por clique.
+
+O projeto está pronto para o `/encerrar-projeto`: pytest final, README, CHANGELOG cortado na
+versão 2.0.0 e tag. Depois disso, como projeto à parte: histórico persistente e resumo das
+últimas N horas.
 
 Para rodar:
 
@@ -34,11 +38,20 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (361 testes, todos passando):
+Para rodar os testes (363 testes, todos passando em ~8 s):
 
 ```
 uv run pytest -v
 ```
+
+Para gerar o executável distribuível:
+
+```
+uv run pyinstaller monitor.spec --noconfirm
+```
+
+Sai em `dist/MonitorDeHardware.exe`, arquivo único de ~20 MB. O `.exe` precisa estar
+fechado antes de reconstruir — o Windows trava o arquivo em execução e o build falha.
 
 ## Estrutura real do projeto
 
@@ -100,6 +113,11 @@ hardware_monitor/
 │   ├── inicializacao.py  — entrada na chave Run do HKCU; caminho resolvido em execução
 │   ├── estado.py         — o pouco que o app lembra entre execuções, em %LOCALAPPDATA%
 │   └── uptime.py         — "Ligado há 5h 23min" a partir dos segundos desde o boot
+├── assets/
+│   ├── icone.ico         — ícone do executável, 7 resoluções (16 a 256)
+│   └── gerar_icone.py    — regenera o .ico; lê a cor do mesmo CORES do semáforo
+├── monitor.spec          — build do PyInstaller: arquivo único, sem terminal, sem UPX
+├── versao.txt            — identificação embutida no .exe (nome, autor, versão)
 ├── recursos.py           — Recurso: fonte única do que o app vigia e do que ele diz
 ├── main.py               — cria CTk root, instancia AplicativoMonitor, chama mainloop()
 ├── aprovados.txt         — fila da v2: as 6 specs, com os achados tecnicos de cada uma
@@ -164,6 +182,9 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
   O contrário — a thread do `pystray` tocar widget — trava ou corrompe a interface em
   silêncio: o clique no ícone e o menu passam por `after(0, ...)`. `ui/bandeja.py` não
   conhece widget nenhum; recebe as ações prontas de quem o criou.
+- **A thread de coleta também sobe pelo `main.py`, não no construtor** — mesma regra do
+  ícone, e pelo mesmo motivo medido: janela construída não pode começar a ler a máquina só
+  por existir.
 - **O ícone da bandeja sobe pelo `main.py`, nunca no construtor da janela.** Subir no
   construtor faz toda janela criada — inclusive as dos testes — registrar um ícone de
   verdade no Windows, com uma thread de message loop por instância. Isso travou a suite
@@ -331,7 +352,7 @@ As 7 specs aprovadas, na ordem:
 4. ~~Abrir com o Windows e uptime no rodapé~~ — **concluída em 2026-08-26**
 5. ~~Ícone na bandeja, com minimizar para lá~~ — **concluída em 2026-08-26**
 6. ~~Cartão de placa de vídeo com uso real (usa o mecanismo da spec 3)~~ — **concluída em 2026-08-26**
-7. Empacotar em `.exe` (depende do caminho definido na spec 4)
+7. ~~Empacotar em `.exe` (depende do caminho definido na spec 4)~~ — **concluída em 2026-08-26**
 
 Depois delas, como projeto à parte: histórico persistente e resumo das últimas N horas.
 
@@ -361,6 +382,48 @@ O app será usado por outras pessoas, em outras máquinas, com outros Windows.
   (`Perflib\009` dá o índice a partir do nome em inglês) e cair para o nome em inglês quando
   não houver tradução — o contador de GPU não é traduzido, o de CPU é.
 - O card de GPU precisa se comportar em PC sem placa dedicada.
+
+### Formato e build (spec 7, 26/08/2026)
+
+**Arquivo único**, gerado por `monitor.spec`. A partida leva de 2 a 5 s porque o executável
+se descompacta numa pasta temporária a cada abertura — aceito, porque o app abre junto com o
+Windows, quando tudo já está lento.
+
+**Três medidas do build são obrigatórias, não preferência.** O app soma dois sinais que
+antivírus procura: se descompacta sozinho e escreve na chave `Run`. Num executável sem
+assinatura digital, isso basta para ser marcado.
+
+- **`upx=False`** — comprimir com UPX é um dos padrões mais marcados, porque é o que malware
+  usa para se esconder. O PyInstaller liga o UPX sozinho quando o encontra instalado, então
+  desligar precisa ser explícito. Conferir pelas seções PE: se aparecer `UPX0`/`UPX1`, está
+  comprimido. Procurar a string "UPX" no binário **não serve** — ela aparece no bootloader
+  mesmo sem compressão.
+- **`version="versao.txt"`** — executável anônimo é tratado como suspeito por heurística.
+- **Arquivos de tema do CustomTkinter no `datas`** — são JSON e PNG carregados em tempo de
+  execução, e o PyInstaller não os encontra sozinho. Sem eles o `.exe` compila e quebra ao
+  abrir a janela.
+
+A favor do app: **não pede administrador** e **não acessa a internet**, os dois
+comportamentos que mais pesam contra um executável desconhecido.
+
+**Versão em três lugares:** `pyproject.toml`, as tuplas de `versao.txt` e as strings de
+`versao.txt`. Mudar em dois e esquecer o terceiro faz o arquivo informar uma versão e o
+repositório declarar outra.
+
+**Passo de release:** enviar o `.exe` para análise da Microsoft. É gratuito e eficaz, mas
+vale só para aquele arquivo exato — cada versão nova precisa ser enviada de novo.
+
+**O aviso do SmartScreen continua aparecendo** na primeira execução, e acontece com qualquer
+executável sem assinatura digital. Foi aceito por ser uma vez só. Risco registrado: o público
+deste app é justamente quem hesita diante de um aviso de segurança do Windows; se a adoção
+travar aí, a assinatura digital passa de "depois" para "necessária".
+
+**Plano B, com gatilho único:** se o executável for **bloqueado ou posto em quarentena** com
+o Defender ativo, o formato muda para pasta compactada em `.zip`. Lentidão na partida **não**
+aciona o plano B — ela já foi aceita.
+
+**Ainda sem verificação (não dá para fazer na máquina de desenvolvimento):** o `.exe` rodando
+num Windows **sem Python instalado**, e uma verificação completa do Defender.
 
 ## Persistência de estado
 - Nada é gravado em disco na v1.
@@ -507,8 +570,12 @@ todas devem ser resolvidas na etapa de setup, antes da primeira spec.
 - **`ConfirmadorSustentado` e `RastreadorAlerta` implementam a mesma janela de tempo**, um
   sobre `bool` e outro sobre `Status`. Duplicação consciente: unificar é mexer em código de
   outra spec que funciona, e a regra do projeto manda perguntar antes de refatorar.
-- **`tests/ui/test_app.py` domina o tempo da suite** (de 4 para ~9 minutos entre as specs
-  4 e 6). Cada teste sobe a thread de coleta real,
+- ~~`tests/ui/test_app.py` domina o tempo da suite~~ → **resolvido em 26/08/2026**: de
+  10min30s para ~8 s. A thread de coleta subia no construtor, então cada janela criada em
+  teste começava a ler a máquina — e as threads que sobreviviam ao fim do teste chamavam
+  `coletar()` **de verdade**, depois que os mocks saíam de cena: PowerShell do disco,
+  contadores PDH e `cpu_percent` bloqueando 1 s, por teste. Agora quem sobe a coleta é o
+  `main.py`, e há teste que falha se alguém devolver a chamada para o construtor. Cada teste sobe a thread de coleta real,
   que roda em laço apertado com o `coletar()` mockado até `_rodando` virar falso. Resolver
   é mexer na fixture e afeta todos os testes de UI — decidir separado.
 - **Texto de interface mora em três lugares agora:** `recursos.py` (textos de recurso),
