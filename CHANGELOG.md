@@ -16,6 +16,8 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   o disco que está fora da tela é o que precisa de atenção
 - O cartão de Temperatura avisa quando o processador diminui a própria velocidade para
   não esquentar — sem mudar de cor nem notificar, porque não há o que fazer a respeito
+- Ícone ao lado do relógio, colorido pelo estado geral da máquina; fechar a janela agora
+  esconde o app ali em vez de encerrá-lo, e o menu do ícone tem Abrir e Sair
 - Interruptor para abrir o app junto com o Windows, já minimizado e sem roubar a tela no
   boot; desmarcar desfaz, e se algo bloquear a mudança o app diz o que aconteceu
 - O rodapé mostra há quanto tempo o computador está ligado

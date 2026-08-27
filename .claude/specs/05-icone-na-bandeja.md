@@ -150,3 +150,7 @@ janela passa a esconder o app para lá em vez de encerrá-lo.
 - **Testes — o que precisa estar coberto** → confirmar o item que já prevê o ícone da bandeja
   como não testável automaticamente; a lógica do módulo é coberta, o desenho não.
 - **Melhorias — ver `aprovados.txt`** → marcar a spec 5 como especificada.
+
+
+---
+**Status:** concluida em 2026-08-26

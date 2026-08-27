@@ -12,6 +12,8 @@ Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, 
 - psutil 7.2.2 — coleta de dados de hardware
 - CustomTkinter 5.2.2 — interface gráfica moderna
 - plyer 2.1.0 — notificações nativas do sistema operacional
+- pystray 0.19.5 — ícone na bandeja do sistema
+- Pillow 12.3.0 — desenha a imagem do ícone da bandeja
 - pytest 9.0.3 — testes
 - uv — gerenciador de dependências (`uv run`, `uv add`)
 
@@ -22,10 +24,10 @@ A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 
 - `ideias.txt` — histórico completo, incluindo o que foi recusado e por quê
 
 A triagem falava em 6 specs; o `/spec` gerou **7** — a fila real está em `.claude/specs/`.
-As specs 1 (notificações por recurso), 2 (medição de disco), 3 (redução de velocidade por
-calor) e 4 (abrir com o Windows e rodapé) foram concluídas em 26/08/2026. As 3 restantes
-estão aprovadas pelo `/spec-review` e pendentes, na ordem 05 → 07. A próxima é a
-**05 — ícone na bandeja**.
+As specs 1 a 5 foram concluídas em 26/08/2026 (a 2 foi reaberta e revisada no mesmo dia,
+para o cartão de Disco trocar de unidade por clique). Restam duas, aprovadas pelo
+`/spec-review`: a próxima é a **06 — cartão de placa de vídeo**, seguida da
+**07 — empacotar em `.exe`**.
 
 Para rodar:
 
@@ -33,7 +35,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (278 testes, todos passando):
+Para rodar os testes (317 testes, todos passando):
 
 ```
 uv run pytest -v
@@ -59,6 +61,7 @@ hardware_monitor/
 ├── ui/
 │   ├── __init__.py
 │   ├── app.py            — AplicativoMonitor(CTkFrame): orquestra coleta, cards e notificações
+│   ├── bandeja.py        — ícone na bandeja: cor pelo pior status, menu Abrir/Sair
 │   └── components/
 │       ├── __init__.py
 │       ├── semaphore.py  — Semaforo(CTkFrame): círculo colorido por status
@@ -79,7 +82,8 @@ hardware_monitor/
 │   │                             calor, RastreadorAlerta)
 │   ├── ui/
 │   │   ├── conftest.py         — fixture raiz (CTk, session-scoped)
-│   │   ├── test_app.py         — 51 testes
+│   │   ├── test_app.py         — 69 testes
+│   │   ├── test_bandeja.py     — 20 testes (pystray mockado)
 │   │   ├── test_cards.py       — 18 testes
 │   │   └── test_semaphore.py   — 5 testes
 │   ├── notifications/
@@ -153,6 +157,18 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
 - **Consulta de saúde que falha devolve `None`, e `None` não é "todos saudáveis".** Tupla
   vazia é informação ("consultei, está tudo bem"); `None` é ausência dela. Os dois escondem
   a linha, mas só o segundo poderia virar alerta falso se fossem confundidos.
+- **A regra de thread do Tkinter vale nas duas direções, e são regras diferentes.**
+  Atualizar a cor do ícone **a partir da thread do Tkinter** é seguro e é assim que se faz.
+  O contrário — a thread do `pystray` tocar widget — trava ou corrompe a interface em
+  silêncio: o clique no ícone e o menu passam por `after(0, ...)`. `ui/bandeja.py` não
+  conhece widget nenhum; recebe as ações prontas de quem o criou.
+- **O ícone da bandeja sobe pelo `main.py`, nunca no construtor da janela.** Subir no
+  construtor faz toda janela criada — inclusive as dos testes — registrar um ícone de
+  verdade no Windows, com uma thread de message loop por instância. Isso travou a suite
+  uma vez; há teste que falha se alguém devolver a chamada para o construtor.
+- **`disponivel` e `ativo` são coisas diferentes na bandeja:** a primeira diz que a
+  biblioteca existe, a segunda que o ícone está no ar. Esconder a janela depende da
+  segunda.
 - **Laço agendado com `after()` para de mexer na tela assim que o app para.** Tanto a
   atualização dos cartões quanto a do rodapé checam isso **na entrada**, não só na hora de
   reagendar: sem essa checagem, um callback já agendado ainda dispara depois do fechamento e
@@ -285,7 +301,7 @@ As 7 specs aprovadas, na ordem:
 2. ~~Card Disco com limiares e textos próprios, saúde do disco, múltiplos discos~~ — **concluída em 2026-08-26**, revisada no mesmo dia para trocar de unidade por clique
 3. ~~Correção do limiar de Temperatura Atenção (60°C → 65°C) + aviso de redução de velocidade por calor (contador PDH do Windows)~~ — **concluída em 2026-08-26**
 4. ~~Abrir com o Windows e uptime no rodapé~~ — **concluída em 2026-08-26**
-5. Ícone na bandeja, com minimizar para lá
+5. ~~Ícone na bandeja, com minimizar para lá~~ — **concluída em 2026-08-26**
 6. Cartão de placa de vídeo com uso real (usa o mecanismo da spec 3)
 7. Empacotar em `.exe` (depende do caminho definido na spec 4)
 
@@ -344,9 +360,17 @@ O app será usado por outras pessoas, em outras máquinas, com outros Windows.
   execução: `pythonw.exe` mais o `main.py` em desenvolvimento, o `.exe` quando empacotado.
   Nunca caminho fixo — na máquina de quem instalar, a pasta deste projeto não existe.
 
-**Ainda pendente (spec 5):**
-- Fechar a janela esconde para a bandeja; não encerra o monitoramento. Hoje fechar ainda
-  encerra o app.
+**Implementado na spec 5 em 26/08/2026:**
+- Fechar a janela **esconde** para a bandeja; a coleta e as notificações continuam.
+- **No primeiro fechamento a janela não some**: aparece o aviso "O monitor continua
+  rodando. Clique no ícone ao lado do relógio para abrir de novo." Mensagem em janela
+  escondida ninguém lê, então a janela fica até o fechamento seguinte. O "já mostrei" vive
+  em `%LOCALAPPDATA%`, então vale para a instalação inteira, não para a execução. O aviso
+  some quando a janela reaparece — é recado de uso único.
+- Encerrar de verdade é pelo **Sair** no menu do ícone. Sem essa opção a pessoa ficaria sem
+  jeito de fechar o app.
+- **Sem bandeja no ar, fechar volta a encerrar.** App que não tem como ser reaberto não
+  pode se esconder.
 
 ## Configuração
 O app **não tem configuração pelo usuário**, e isso é decisão, não esquecimento.
@@ -455,14 +479,18 @@ todas devem ser resolvidas na etapa de setup, antes da primeira spec.
 - **`ConfirmadorSustentado` e `RastreadorAlerta` implementam a mesma janela de tempo**, um
   sobre `bool` e outro sobre `Status`. Duplicação consciente: unificar é mexer em código de
   outra spec que funciona, e a regra do projeto manda perguntar antes de refatorar.
+- **`tests/ui/test_app.py` leva vários minutos.** Cada teste sobe a thread de coleta real,
+  que roda em laço apertado com o `coletar()` mockado até `_rodando` virar falso. Resolver
+  é mexer na fixture e afeta todos os testes de UI — decidir separado.
 - **Texto de interface mora em três lugares agora:** `recursos.py` (textos de recurso),
   `ui/app.py` (os avisos do interruptor de inicialização) e `sistema/uptime.py` ("Ligado
   há"). A regra escrita diz "origem única em `recursos.py`", e o teste que a guarda cobre só
   os textos de recurso. Decidir se a regra passa a dizer "textos de recurso" ou se essas
   frases migram.
-- **`_criar_rodape` em `ui/app.py` tem 41 linhas** — são quatro construções de widget em
-  sequência. Em compensação o `__init__` caiu de 35 para 20, com `_preparar_janela`,
-  `_criar_cards` e `_criar_rodape` extraídos.
+- ~~`_criar_rodape` com 41 linhas~~ → **resolvido em 26/08/2026**: virou `_criar_controles`
+  mais `_criar_linha_de_recado`, e `_organizar` ganhou `_organizar_rodape`. Restam em
+  `ui/app.py` três funções entre 25 e 27 linhas (`__init__`, `_avancar_selecao`,
+  `_atualizar_cards`), todas sequências diretas sem ramificação.
 - **Três funções em `hardware/pdh.py` passam de 20 linhas** (`_abrir` 30, `ler` 23,
   `__init__` 22). Ficam assim porque a spec 6 importa `pdh.py` **sem editar**, e quebrar as
   funções agora mudaria a superfície que ela vai consumir.

@@ -1,3 +1,5 @@
+from contextlib import ExitStack, contextmanager
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import recursos
@@ -650,3 +652,191 @@ def test_clique_nao_redispara_notificacao(_, raiz):
     app._notificadores["disco"] = MagicMock()
     app._avancar_selecao(recursos.DISCO)
     app._notificadores["disco"].processar.assert_not_called()
+
+
+@contextmanager
+def _app_com_bandeja(raiz, disponivel=True, ja_avisou=False):
+    """App com a bandeja, o estado em disco e a janela todos simulados.
+
+    Gerenciador de contexto de propósito: se as substituições saíssem de cena antes do
+    teste rodar, `estado` gravaria em `%LOCALAPPDATA%` de verdade — teste que suja a
+    máquina de quem roda. Os mocks da janela ficam aqui porque dependem do `app` já
+    construído, e mantê-los no teste exigiria um `with` aninhado em cada um.
+    """
+    from ui.app import AplicativoMonitor
+
+    bandeja = MagicMock(disponivel=disponivel, ativo=disponivel)
+    guardado = {"ja_avisou_que_esconde": ja_avisou}
+
+    with ExitStack() as pilha:
+        pilha.enter_context(patch("ui.app.Bandeja", return_value=bandeja))
+        pilha.enter_context(
+            patch(
+                "ui.app.estado.obter", side_effect=lambda c, p=None: guardado.get(c, p)
+            )
+        )
+        pilha.enter_context(
+            patch(
+                "ui.app.estado.definir",
+                side_effect=lambda c, v: guardado.update({c: v}),
+            )
+        )
+
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+
+        janela = SimpleNamespace(
+            app=app,
+            bandeja=bandeja,
+            esconder=pilha.enter_context(patch.object(app.master, "withdraw")),
+            destruir=pilha.enter_context(patch.object(app.master, "destroy")),
+            mostrar=pilha.enter_context(patch.object(app.master, "deiconify")),
+            agendar=pilha.enter_context(patch.object(app, "after")),
+        )
+        yield janela
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_fechar_a_janela_nao_encerra_o_app(_, raiz):
+    with _app_com_bandeja(raiz, ja_avisou=True) as tela:
+        tela.app._rodando = True
+        tela.app._ao_fechar()
+        assert tela.app._rodando
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_fechar_a_janela_esconde_a_janela(_, raiz):
+    with _app_com_bandeja(raiz, ja_avisou=True) as tela:
+        tela.app._ao_fechar()
+        tela.esconder.assert_called_once()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_fechar_a_janela_nao_destroi_a_janela(_, raiz):
+    with _app_com_bandeja(raiz, ja_avisou=True) as tela:
+        tela.app._ao_fechar()
+        tela.destruir.assert_not_called()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_primeiro_fechamento_avisa_que_continua_rodando(_, raiz):
+    with _app_com_bandeja(raiz, ja_avisou=False) as tela:
+        tela.app._ao_fechar()
+        assert "continua rodando" in tela.app.aviso_esconde
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_primeiro_fechamento_nao_esconde_a_janela(_, raiz):
+    """A mensagem fica na própria janela — sumir com ela seria não avisar nada."""
+    with _app_com_bandeja(raiz, ja_avisou=False) as tela:
+        tela.app._ao_fechar()
+        tela.esconder.assert_not_called()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_segundo_fechamento_esconde_sem_avisar_de_novo(_, raiz):
+    with _app_com_bandeja(raiz, ja_avisou=False) as tela:
+        tela.app._ao_fechar()
+        tela.app._ao_fechar()
+        tela.esconder.assert_called_once()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_aviso_nao_reaparece_em_execucao_seguinte(_, raiz):
+    """O "já mostrei" vive em disco, não na memória do processo."""
+    with _app_com_bandeja(raiz, ja_avisou=True) as tela:
+        tela.app._ao_fechar()
+        assert tela.app.aviso_esconde == ""
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_sem_bandeja_fechar_volta_a_encerrar(_, raiz):
+    """App que não tem como ser reaberto não pode se esconder."""
+    with _app_com_bandeja(raiz, disponivel=False) as tela:
+        tela.app._ao_fechar()
+        tela.destruir.assert_called_once()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_sair_para_a_coleta(_, raiz):
+    with _app_com_bandeja(raiz) as tela:
+        tela.app._rodando = True
+        tela.app._encerrar()
+        assert not tela.app._rodando
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_sair_remove_o_icone(_, raiz):
+    with _app_com_bandeja(raiz) as tela:
+        tela.app._encerrar()
+        tela.bandeja.parar.assert_called_once()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_sair_fecha_a_janela(_, raiz):
+    with _app_com_bandeja(raiz) as tela:
+        tela.app._encerrar()
+        tela.destruir.assert_called_once()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_clique_no_icone_passa_pela_thread_do_tkinter(_, raiz):
+    """Mexer em widget fora da thread principal trava ou corrompe a interface calado."""
+    with _app_com_bandeja(raiz) as tela:
+        tela.app._pedir_para_abrir()
+        assert tela.agendar.call_args.args[0] == 0
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_clique_no_icone_nao_toca_a_janela_direto(_, raiz):
+    with _app_com_bandeja(raiz) as tela:
+        tela.app._pedir_para_abrir()
+        tela.mostrar.assert_not_called()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_sair_pelo_menu_tambem_passa_pela_thread_do_tkinter(_, raiz):
+    with _app_com_bandeja(raiz) as tela:
+        tela.app._pedir_para_sair()
+        assert tela.agendar.call_args.args[0] == 0
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_icone_acompanha_o_pior_status(_, raiz):
+    with _app_com_bandeja(raiz) as tela:
+        tela.app._rastreadores["cpu"] = MagicMock(
+            atualizar=MagicMock(side_effect=lambda status: status)
+        )
+        tela.app._atualizar_cards(DadosHardware(cpu=95.0, ram=20.0, disco=_disco()))
+        assert tela.bandeja.atualizar.call_args.args[0] == Status.ALERTA
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_icone_verde_com_tudo_normal(_, raiz):
+    with _app_com_bandeja(raiz) as tela:
+        tela.app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+        assert tela.bandeja.atualizar.call_args.args[0] == Status.NORMAL
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_construtor_nao_sobe_icone(_, raiz):
+    """Cada janela criada registraria um ícone real no Windows, com thread própria."""
+    with _app_com_bandeja(raiz) as tela:
+        tela.bandeja.iniciar.assert_not_called()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_iniciar_bandeja_sobe_o_icone_com_o_pior_status(_, raiz):
+    with _app_com_bandeja(raiz) as tela:
+        tela.app.iniciar_bandeja()
+        tela.bandeja.iniciar.assert_called_once_with(Status.NORMAL)
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_aviso_de_esconder_some_quando_a_janela_volta(_, raiz):
+    """Mensagem de uso único não pode morar no rodapé para sempre."""
+    with _app_com_bandeja(raiz, ja_avisou=False) as tela:
+        tela.app._ao_fechar()
+        tela.app._mostrar_janela()
+        raiz.update_idletasks()
+        assert not tela.app._label_aviso_esconde.winfo_manager()

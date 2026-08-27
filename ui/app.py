@@ -7,8 +7,16 @@ from hardware.processos import programa_dominante
 from hardware.thresholds import RastreadorAlerta, Status, menos_grave
 from notifications.manager import GerenciadorNotificacoes
 from recursos import RECURSOS, pior_status
-from sistema import inicializacao, uptime
+from sistema import estado, inicializacao, uptime
+from ui.bandeja import Bandeja
 from ui.components.cards import CartaoRecurso
+
+# Sem este aviso a pessoa acha que fechou o app, e ele segue rodando invisível —
+# comportamento que ela não pediu e não percebeu.
+AVISO_ESCONDIDO = (
+    "O monitor continua rodando. Clique no ícone ao lado do relógio para abrir de novo."
+)
+CHAVE_JA_AVISOU = "ja_avisou_que_esconde"
 
 AVISO_FALHA_ATIVAR = (
     "Não foi possível ativar. Algum programa de segurança pode estar bloqueando."
@@ -45,6 +53,10 @@ class AplicativoMonitor(ctk.CTkFrame):
         self._notificadores = {r.nome: GerenciadorNotificacoes(r) for r in RECURSOS}
         self._cards = self._criar_cards()
         self._criar_rodape()
+
+        self._bandeja = Bandeja(
+            ao_abrir=self._pedir_para_abrir, ao_sair=self._pedir_para_sair
+        )
 
         self._organizar()
         self._iniciar_coleta()
@@ -96,14 +108,19 @@ class AplicativoMonitor(ctk.CTkFrame):
             self._exibir(recurso, valor, status)
 
     def _criar_rodape(self) -> None:
-        """Interruptor, botão de tema, uptime e a linha de aviso, nesta ordem visual.
+        """Controles e linhas de recado abaixo dos cartões.
 
         Tudo em `grid` dentro de um frame próprio, e não em `pack`: a regra de packing do
         projeto (`side="right"` antes de qualquer `expand=True`) é fácil de violar sem
         perceber, e o `grid` não tem esse problema.
         """
         self._rodape = ctk.CTkFrame(self, fg_color="transparent")
+        self._criar_controles()
+        self._label_aviso_inicio = self._criar_linha_de_recado(quebra=320)
+        self._label_uptime = self._criar_linha_de_recado()
+        self._label_aviso_esconde = self._criar_linha_de_recado(quebra=320)
 
+    def _criar_controles(self) -> None:
         self._interruptor_inicio = ctk.CTkSwitch(
             self._rodape,
             text="Abrir junto com o Windows",
@@ -122,17 +139,14 @@ class AplicativoMonitor(ctk.CTkFrame):
             height=28,
             command=self._alternar_tema,
         )
-        self._label_aviso_inicio = ctk.CTkLabel(
+
+    def _criar_linha_de_recado(self, quebra: int | None = None) -> ctk.CTkLabel:
+        """Rótulo discreto do rodapé. Nasce vazio, e vazio ele fica escondido."""
+        return ctk.CTkLabel(
             self._rodape,
             text="",
-            wraplength=320,
+            wraplength=quebra or 0,
             justify="left",
-            font=ctk.CTkFont(size=11),
-            anchor="w",
-        )
-        self._label_uptime = ctk.CTkLabel(
-            self._rodape,
-            text="",
             font=ctk.CTkFont(size=11),
             anchor="w",
         )
@@ -145,6 +159,19 @@ class AplicativoMonitor(ctk.CTkFrame):
         """
         return pior_status(self._status_atual.values())
 
+    def iniciar_bandeja(self) -> bool:
+        """Sobe o ícone. Chamado de fora, e não do construtor, de propósito.
+
+        Subir no construtor faria toda janela criada — inclusive as dos testes — registrar
+        um ícone de verdade no Windows, com uma thread por instância.
+        """
+        return self._bandeja.iniciar(self.pior_status_atual)
+
+    @property
+    def aviso_esconde(self) -> str:
+        """O que a mensagem de primeira vez está dizendo. Existe para o teste ver."""
+        return self._label_aviso_esconde.cget("text")
+
     def _organizar(self) -> None:
         self.grid_columnconfigure(0, weight=1)
         for i, card in enumerate(self._cards.values()):
@@ -154,15 +181,22 @@ class AplicativoMonitor(ctk.CTkFrame):
         self._rodape.grid(
             row=len(self._cards), column=0, sticky="ew", padx=20, pady=(16, 16)
         )
+        self._organizar_rodape()
+
+    def _organizar_rodape(self) -> None:
         self._rodape.grid_columnconfigure(0, weight=1)
         self._interruptor_inicio.grid(row=0, column=0, sticky="w")
         self._botao_tema.grid(row=0, column=1, sticky="e")
-        self._label_aviso_inicio.grid(
-            row=1, column=0, columnspan=2, sticky="w", pady=(8, 0)
+
+        linhas = (
+            self._label_aviso_inicio,
+            self._label_uptime,
+            self._label_aviso_esconde,
         )
-        self._label_aviso_inicio.grid_remove()
-        self._label_uptime.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
-        self._label_uptime.grid_remove()
+        for i, linha in enumerate(linhas, start=1):
+            linha.grid(row=i, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            # Nasce escondido: rótulo vazio ocupa altura e afasta o rodapé dos cartões.
+            linha.grid_remove()
 
     def _esconder_card(self, recurso) -> None:
         """Recurso sem leitura some da tela e sai da conta do pior status.
@@ -236,6 +270,11 @@ class AplicativoMonitor(ctk.CTkFrame):
                 leitura=valor,
             )
 
+        self._atualizar_bandeja()
+
+    def _atualizar_bandeja(self) -> None:
+        self._bandeja.atualizar(self.pior_status_atual)
+
     def _exibir(self, recurso, valor, status: Status) -> None:
         """Desenha o recorte selecionado, sem deixar a tela ultrapassar o que foi decidido.
 
@@ -249,6 +288,50 @@ class AplicativoMonitor(ctk.CTkFrame):
         cartao = self._cards[recurso.nome]
         cartao.atualizar(status_exibido, vista)
         cartao.definir_clicavel(recurso.total_de_vistas(valor) > 1)
+
+    def _pedir_para_abrir(self) -> None:
+        """Chamado da thread do `pystray` — nunca toca widget direto.
+
+        Mexer em widget do Tkinter de fora da thread principal trava ou corrompe a
+        interface em silêncio. O `after(0, ...)` serializa a chamada na thread certa.
+        """
+        self.after(0, self._mostrar_janela)
+
+    def _pedir_para_sair(self) -> None:
+        self.after(0, self._encerrar)
+
+    def _mostrar_janela(self) -> None:
+        # A mensagem é de uso único: quem reabriu pelo ícone já entendeu o recado, e
+        # deixá-la no rodapé para sempre seria ocupar espaço com informação vencida.
+        self._label_aviso_esconde.grid_remove()
+
+        janela = self.master
+        janela.deiconify()
+        janela.lift()
+        janela.focus_force()
+
+    def _esconder_janela(self) -> None:
+        self.master.withdraw()
+
+    def _avisar_que_continua_rodando(self) -> bool:
+        """Mostra a mensagem uma vez em toda a vida da instalação. Devolve se mostrou.
+
+        A mensagem fica na própria janela, e por isso a janela **não** some nesta vez: a
+        pessoa precisa ler antes. Do segundo fechamento em diante, esconde direto.
+        """
+        if estado.obter(CHAVE_JA_AVISOU, False):
+            return False
+
+        self._label_aviso_esconde.configure(text=AVISO_ESCONDIDO)
+        self._label_aviso_esconde.grid()
+        estado.definir(CHAVE_JA_AVISOU, True)
+        return True
+
+    def _encerrar(self) -> None:
+        """Sair de verdade: para a coleta, tira o ícone e fecha a janela."""
+        self._rodando = False
+        self._bandeja.parar()
+        self.master.destroy()
 
     def _identificar_programa(self, recurso, status: Status):
         """Varre só no momento do alerta, e só para quem tem programa associado."""
@@ -331,5 +414,16 @@ class AplicativoMonitor(ctk.CTkFrame):
             self._botao_tema.configure(text="Modo Claro")
 
     def _ao_fechar(self) -> None:
-        self._rodando = False
-        self.master.destroy()
+        """Fechar a janela esconde para a bandeja; a coleta e os avisos continuam.
+
+        Sem bandeja disponível, volta ao comportamento de antes e encerra — um app que
+        não tem como ser reaberto não pode se esconder.
+        """
+        if not self._bandeja.ativo:
+            self._encerrar()
+            return
+
+        if self._avisar_que_continua_rodando():
+            return
+
+        self._esconder_janela()

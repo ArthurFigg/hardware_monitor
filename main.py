@@ -12,6 +12,8 @@ def main() -> None:
     monitor = AplicativoMonitor(raiz)
     monitor.pack(fill="both", expand=True)
 
+    monitor.iniciar_bandeja()
+
     # Subindo pela entrada do registro, o app não rouba a tela de quem acabou de ligar
     # o computador. Aberto pela pessoa, abre visível como sempre.
     if inicializacao.iniciado_minimizado():

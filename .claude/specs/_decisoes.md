@@ -212,3 +212,18 @@ silencioso: escolher a fatia saudável desliga o aviso da fatia problemática, e
 denuncia isso.
 **Custo aceito:** dois status por cartão em vez de um — o que foi decidido e o que está
 sendo mostrado —, e o código precisa deixar claro em cada ponto qual dos dois está em jogo.
+
+
+## Recurso de sistema operacional sobe pelo ponto de entrada, nunca por construtor
+
+**Contexto:** algumas coisas que o app usa não são objetos comuns — registram algo no
+sistema operacional e sobem uma thread própria: ícone de bandeja, atalho global de teclado,
+servidor local. Criar o objeto é barato; ligá-lo não é.
+**Decisão:** o construtor apenas monta o objeto; quem liga é o ponto de entrada do programa,
+por chamada explícita. E o objeto distingue "a biblioteca existe" de "está no ar" — decisões
+de comportamento dependem da segunda, não da primeira.
+**Descartado:** ligar no construtor, que é conveniente e parece natural. O preço aparece nos
+testes: cada objeto construído registra algo de verdade no sistema, com uma thread por
+instância, e a suite trava sem dizer por quê.
+**Custo aceito:** o ponto de entrada precisa lembrar de fazer a chamada, e há um teste
+existindo só para garantir que ninguém devolva a chamada para o construtor.
