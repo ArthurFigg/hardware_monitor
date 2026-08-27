@@ -1,3 +1,23 @@
+## Próxima sessão — começar por aqui
+
+A v2.0.0 está lançada e as 7 specs estão concluídas, então o `/session-start` não vai
+apontar trabalho pendente sozinho. **Falta isto, e nenhum dos dois é verificável na máquina
+de desenvolvimento:**
+
+- [ ] **Rodar o `.exe` num Windows sem Python instalado.** É a única prova de que o
+      empacotamento cumpriu o objetivo. Se falhar, o mais provável é faltar algum arquivo no
+      `datas` do `monitor.spec` — o sintoma é o `.exe` abrir e morrer sem mensagem.
+- [ ] **Passar o `.exe` por uma verificação completa do Defender.** Se ele for **bloqueado ou
+      posto em quarentena**, aciona o plano B: o formato muda para pasta compactada em
+      `.zip`. Lentidão na partida **não** aciona o plano B — já foi aceita.
+
+Passo de release ainda não feito: **enviar o `.exe` para análise da Microsoft** (gratuito,
+reduz o SmartScreen). Vale só para aquele arquivo exato — cada versão nova precisa ser
+enviada de novo.
+
+Depois disso, o projeto seguinte: **histórico persistente e resumo das últimas N horas** —
+projeto à parte, não spec desta base.
+
 ## Projeto
 Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, RAM, Disco e Temperatura estimada em indicadores visuais simples (sistema de semáforo) para usuários não-técnicos.
 
