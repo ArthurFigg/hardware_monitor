@@ -59,7 +59,6 @@ class AplicativoMonitor(ctk.CTkFrame):
         )
 
         self._organizar()
-        self._iniciar_coleta()
         self._agendar_atualizacao()
         self._atualizar_uptime()
 
@@ -221,7 +220,14 @@ class AplicativoMonitor(ctk.CTkFrame):
         """
         return [nome for nome, card in self._cards.items() if card.winfo_manager()]
 
-    def _iniciar_coleta(self) -> None:
+    def iniciar_coleta(self) -> None:
+        """Sobe a thread que lê o hardware. Chamada de fora, não do construtor.
+
+        Mesma razão do ícone da bandeja: uma janela construída não pode, só por existir,
+        começar a ler a máquina. Nos testes isso significava dezenas de threads girando
+        em laço apertado, e as que sobrevivessem ao fim do teste chamariam a leitura de
+        verdade — segundos de PowerShell e contadores por teste.
+        """
         thread = threading.Thread(target=self._loop_coleta, daemon=True)
         thread.start()
 

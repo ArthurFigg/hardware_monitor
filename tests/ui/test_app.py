@@ -434,7 +434,13 @@ def test_uptime_indisponivel_nao_quebra_a_janela(_, raiz):
     ):
         app = AplicativoMonitor(raiz)
         app._rodando = False
-    assert app.cards_visiveis() == ["cpu", "ram", "disco", "temperatura"]
+    assert app.cards_visiveis() == [
+        "cpu",
+        "ram",
+        "disco",
+        "temperatura",
+        "placa_video",
+    ]
 
 
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
@@ -920,3 +926,26 @@ def test_placa_nao_dispara_notificacao(_, raiz):
     app._atualizar_cards(dados)
     titulo = app._notificadores["placa_video"].processar
     assert titulo.call_args.args[0] != Status.ALERTA
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_construtor_nao_sobe_a_thread_de_coleta(_, raiz):
+    """Janela construída não pode começar a ler a máquina só por existir."""
+    from ui.app import AplicativoMonitor
+
+    with patch("ui.app.threading.Thread") as thread:
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+        thread.assert_not_called()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_iniciar_coleta_sobe_thread_daemon(_, raiz):
+    """Daemon para o processo não ficar preso por ela ao fechar."""
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    with patch("ui.app.threading.Thread") as thread:
+        app.iniciar_coleta()
+        assert thread.call_args.kwargs["daemon"] is True
