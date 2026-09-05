@@ -1,19 +1,31 @@
 ## Próxima sessão — começar por aqui
 
-A v2.0.0 está lançada e as 7 specs estão concluídas, então o `/session-start` não vai
-apontar trabalho pendente sozinho. **Falta isto, e nenhum dos dois é verificável na máquina
-de desenvolvimento:**
+A v2.1.0 está pronta no código e **ainda não foi publicada**. O passo seguinte é publicar
+o Release, e só depois as verificações que dependem dele:
 
-- [ ] **Rodar o `.exe` num Windows sem Python instalado.** É a única prova de que o
-      empacotamento cumpriu o objetivo. Se falhar, o mais provável é faltar algum arquivo no
-      `datas` do `monitor.spec` — o sintoma é o `.exe` abrir e morrer sem mensagem.
-- [ ] **Passar o `.exe` por uma verificação completa do Defender.** Se ele for **bloqueado ou
-      posto em quarentena**, aciona o plano B: o formato muda para pasta compactada em
-      `.zip`. Lentidão na partida **não** aciona o plano B — já foi aceita.
-
-Passo de release ainda não feito: **enviar o `.exe` para análise da Microsoft** (gratuito,
-reduz o SmartScreen). Vale só para aquele arquivo exato — cada versão nova precisa ser
-enviada de novo.
+- [ ] **Publicar a v2.1.0**: commitar, criar a tag `v2.1.0` e empurrar. O workflow de
+      release gera o `.exe` e anexa sozinho.
+- [ ] **Rodar o `.exe` baixado do Release num Windows sem Python instalado.** É a única
+      prova de que o empacotamento cumpriu o objetivo. Se falhar, o mais provável é
+      faltar algum arquivo no `datas` do `monitor.spec` — o sintoma é o `.exe` abrir e
+      morrer sem mensagem.
+- [ ] **Testar o SmartScreen.** Dá para simular aqui, sem outra máquina: marcar o arquivo
+      como baixado e abrir.
+      ```powershell
+      Set-Content "MonitorDeHardware.exe:Zone.Identifier" "[ZoneTransfer]`nZoneId=3"
+      ```
+      A varredura do Defender no arquivo já foi feita em 05/09/2026 e passou limpa — o que
+      falta é o aviso de reputação, que é outro mecanismo.
+- [ ] **Passar o `.exe` por uma verificação completa do Defender.** Testar o arquivo
+      **baixado pelo navegador**, não o de `dist/`: baixado, o Windows o marca (*Mark of
+      the Web*) e o SmartScreen se comporta diferente — testar o de `dist/` testaria o
+      caso mais fácil. Se for **bloqueado ou posto em quarentena**, aciona o plano B: o
+      formato muda para pasta compactada em `.zip`. Lentidão na partida **não** aciona o
+      plano B — já foi aceita.
+- [ ] **Enviar o `.exe` para análise da Microsoft** (gratuito, reduz o SmartScreen). Vale
+      só para aquele arquivo exato — cada versão nova precisa ser enviada de novo, e por
+      isso vem depois das duas verificações acima: se o plano B mudar o formato, o envio
+      anterior morre junto.
 
 Depois disso, o projeto seguinte: **histórico persistente e resumo das últimas N horas** —
 projeto à parte, não spec desta base.
@@ -38,7 +50,7 @@ Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, 
 - pyinstaller 6.22.2 — empacotamento em `.exe` (desenvolvimento)
 - uv — gerenciador de dependências (`uv run`, `uv add`)
 
-## Estado atual — v2 em andamento: 1 spec de 7 concluída
+## Estado atual — v2 concluída; v2.1.0 pronta no código, Release ainda não publicado
 
 A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 12 aprovadas, 11 adiadas, 7 descartadas. O plano vive em dois arquivos na raiz:
 - `aprovados.txt` — o que fazer, agrupado em specs, com os achados técnicos de cada uma
@@ -48,9 +60,11 @@ A triagem falava em 6 specs; o `/spec` gerou **7** — a fila real está em `.cl
 **As 7 specs da v2 estão concluídas** (26/08/2026). A spec 2 foi reaberta e revisada no
 mesmo dia, para o cartão de Disco trocar de unidade por clique.
 
-O projeto está pronto para o `/encerrar-projeto`: pytest final, README, CHANGELOG cortado na
-versão 2.0.0 e tag. Depois disso, como projeto à parte: histórico persistente e resumo das
-últimas N horas.
+A v2.0.0 foi encerrada e marcada em 26/08/2026. Em 05/09/2026 o projeto foi reaberto para
+resolver a distribuição — publicação pelo GitHub Actions e três defeitos que só aparecem na
+máquina de quem baixa — e o resultado é a v2.1.0, pronta no código e ainda não publicada.
+Ver a seção de abertura deste arquivo. Depois disso, como projeto à parte: histórico
+persistente e resumo das últimas N horas.
 
 Para rodar:
 
@@ -58,7 +72,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (363 testes, todos passando em ~8 s):
+Para rodar os testes (392 testes, todos passando em ~7 s):
 
 ```
 uv run pytest -v
@@ -72,6 +86,9 @@ uv run pyinstaller monitor.spec --noconfirm
 
 Sai em `dist/MonitorDeHardware.exe`, arquivo único de ~20 MB. O `.exe` precisa estar
 fechado antes de reconstruir — o Windows trava o arquivo em execução e o build falha.
+
+**Isso é para conferir localmente. O executável que se distribui é o do Release**, gerado
+pelo GitHub Actions — ver "Distribuição".
 
 ## Estrutura real do projeto
 
@@ -117,20 +134,26 @@ hardware_monitor/
 │   │                             calor, RastreadorAlerta)
 │   ├── ui/
 │   │   ├── conftest.py         — fixture raiz (CTk, session-scoped)
-│   │   ├── test_app.py         — 69 testes
+│   │   ├── test_app.py         — 82 testes
 │   │   ├── test_bandeja.py     — 20 testes (pystray mockado)
 │   │   ├── test_cards.py       — 18 testes
 │   │   └── test_semaphore.py   — 5 testes
 │   ├── notifications/
 │   │   └── test_manager.py     — 13 testes (mock plyer)
 │   ├── sistema/
-│   │   ├── test_inicializacao.py — 18 testes (winreg mockado)
-│   │   ├── test_estado.py        — 8 testes (pasta temporária)
-│   │   └── test_uptime.py        — 6 testes
+│   │   ├── test_inicializacao.py   — 26 testes (winreg mockado)
+│   │   ├── test_instancia_unica.py — 13 testes (kernel32 mockado)
+│   │   ├── test_caminhos.py        — 6 testes (_MEIPASS simulado)
+│   │   ├── test_estado.py          — 8 testes (pasta temporária)
+│   │   └── test_uptime.py          — 6 testes
 │   └── test_recursos.py        — 33 testes (textos, causas, origem única das frases)
 ├── sistema/
 │   ├── __init__.py
-│   ├── inicializacao.py  — entrada na chave Run do HKCU; caminho resolvido em execução
+│   ├── inicializacao.py  — entrada na chave Run do HKCU; caminho resolvido em execução,
+│                           e corrigido sozinho quando o executável mudou de pasta
+│   ├── instancia_unica.py — mutex nomeado do Windows: a segunda abertura mostra a janela
+│                            da primeira e sai
+│   ├── caminhos.py       — onde estão os arquivos que acompanham o app, empacotado ou não
 │   ├── estado.py         — o pouco que o app lembra entre execuções, em %LOCALAPPDATA%
 │   └── uptime.py         — "Ligado há 5h 23min" a partir dos segundos desde o boot
 ├── assets/
@@ -153,7 +176,11 @@ hardware_monitor/
 
 O `CHANGELOG.md` foi criado em 26/08/2026, com a v1.0.0 registrada e a seção "Não lançado"
 pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_dominio.md` e o
-`_decisoes.md`. O CI está em `.github/workflows/tests.yml`.
+`_decisoes.md`. Há dois workflows: `.github/workflows/tests.yml` (testes, Linux) e
+`.github/workflows/release.yml` (executável e Release, Windows).
+
+`post-linkedin.txt` na raiz é anotação pessoal para a postagem, está no `.gitignore` e não
+faz parte do projeto.
 
 ## Decisões arquiteturais importantes
 
@@ -246,6 +273,26 @@ pronta para o `/spec-close`. O `.claude/specs/` tem as 7 specs da v2, o `_domini
 - **A janela de 5 s do aviso de calor avança dentro do `coletar()`, e só ali.** É o único
   ponto que roda uma vez por ciclo. Se o relógio andasse em quem lê os dados, cada consumidor
   novo (a bandeja da spec 5) o encurtaria pela metade sem que ninguém percebesse.
+- **O ícone do arquivo e o ícone da janela são coisas separadas.** O `icon=` do
+  `monitor.spec` só decide como o `.exe` aparece no Explorer; a janela aberta usa o que o
+  Tk tiver, e sem `iconbitmap` isso é o ícone do próprio Tk. Por isso o `.ico` também
+  entra no `datas` e é lido **em execução** — e ícone que falta esconde a si mesmo, como
+  qualquer outra leitura.
+- **Caminho de arquivo acompanhante passa por `sistema/caminhos.py`, nunca é montado à
+  mão.** Empacotado em arquivo único, o app roda de uma pasta temporária diferente a cada
+  abertura, anunciada em `sys._MEIPASS`; caminho relativo à pasta do projeto só existe na
+  máquina de quem desenvolve.
+- **Uma instância por vez, e a segunda mostra a janela da primeira.** O app entra na chave
+  `Run`, então ele já está rodando quando a pessoa clica no executável — sem isso são dois
+  processos, dois ícones na bandeja e notificação em dobro. Sair calado seria pior que o
+  problema: a pessoa clicou e nada aconteceu. Mutex nomeado decide quem é a primeira;
+  evento nomeado carrega o pedido, e a thread que espera nele entrega pelo `after(0, ...)`
+  — mesma regra do ícone da bandeja.
+- **A correção do caminho no registro só roda empacotada.** Ela existe porque o programa
+  não tem instalador e pode ser arrastado para outra pasta depois de ligar o interruptor,
+  o que o tiraria do boot em silêncio. Rodando pelo código ela fica desligada: um teste em
+  desenvolvimento apontaria a chave `Run` para a pasta do projeto, roubando a entrada do
+  programa que a pessoa de fato usa.
 - **`Recurso` ganhou `causa_fn`, `linha_extra_fn`, `detalhe_fn` e `descricao_de()`** — o
   Disco é o único que os usa hoje. Sem eles, a variante de texto de desgaste que a spec 1
   escreveu era código morto: não havia caminho que a acionasse. O cartão chama
@@ -405,9 +452,38 @@ O app será usado por outras pessoas, em outras máquinas, com outros Windows.
 
 ### Formato e build (spec 7, 26/08/2026)
 
-**Arquivo único**, gerado por `monitor.spec`. A partida leva de 2 a 5 s porque o executável
-se descompacta numa pasta temporária a cada abertura — aceito, porque o app abre junto com o
-Windows, quando tudo já está lento.
+**Quem gera o executável distribuído é o GitHub Actions, não esta máquina** (decidido em
+05/09/2026). Empurrar a tag `vX.Y.Z` dispara `release.yml`, que compila no `windows-latest`
+e publica o Release com o `.exe` e o hash SHA-256 anexados; as notas saem da seção do
+CHANGELOG daquela versão. Motivo: gerando à mão, o arquivo publicado é o que alguém lembrou
+de reconstruir, e "esqueci de rebuildar" não aparece em teste nenhum — aparece na máquina de
+quem baixou, que é justamente quem não sabe diagnosticar computador.
+
+O workflow **falha antes de compilar** se a versão não bater nos cinco pontos
+(`pyproject.toml` mais os quatro campos de `versao.txt`) ou se `upx=False` e
+`version="versao.txt"` tiverem saído do `monitor.spec`. As conferências são ancoradas no
+começo da linha de propósito: as duas medidas também aparecem no comentário do topo do
+arquivo, e sem âncora apagar a linha real e deixar o comentário passaria.
+
+A tag da v2.0.0 foi criada antes do workflow existir, então ele também aceita disparo
+manual: roda a partir da `main` e recebe a tag como parâmetro, porque o Actions lê o
+arquivo do workflow a partir do ref escolhido.
+
+**O CI não substitui o teste em máquina limpa:** o runner tem Python instalado e não tem
+área de trabalho, então ele prova que o executável **compila**, nunca que ele **abre**.
+
+**Arquivo único**, gerado por `monitor.spec`. O executável se descompacta em
+`%TEMP%\_MEIxxxxx` a cada abertura — 38 MB extraídos, apagados na saída normal.
+**Medido em 05/09/2026: 1,4 s até a janela aparecer**, com o arquivo já em cache; a
+estimativa anterior de 2 a 5 s era pessimista, e a primeira abertura de todas é mais lenta
+que as seguintes.
+
+Duas consequências do formato, ambas conhecidas e aceitas:
+- **Encerrar pelo Gerenciador de Tarefas deixa os 38 MB no temp**, uma pasta por vez. Só a
+  saída limpa apaga. Não tem conserto dentro do formato de arquivo único; o Windows acaba
+  recolhendo pela limpeza de disco.
+- Programa de limpeza agressivo que apague `%TEMP%\_MEIxxxxx` **com o app aberto** o
+  quebra no meio da execução.
 
 **Três medidas do build são obrigatórias, não preferência.** O app soma dois sinais que
 antivírus procura: se descompacta sozinho e escreve na chave `Run`. Num executável sem
@@ -442,8 +518,28 @@ travar aí, a assinatura digital passa de "depois" para "necessária".
 o Defender ativo, o formato muda para pasta compactada em `.zip`. Lentidão na partida **não**
 aciona o plano B — ela já foi aceita.
 
+**Verificado empacotado nesta máquina em 05/09/2026:** a janela abre com o ícone do app na
+barra de título, a bandeja registra o ícone (classe `SystemTrayIcon` presente), fechar a
+janela esconde sem encerrar o processo, a versão embutida aparece como 2.1.0 nas
+propriedades do arquivo, `--minimizado` abre a janela minimizada e invisível como a chave
+`Run` espera, e a segunda abertura mostra a janela da primeira — inclusive quando ela está
+minimizada — e sai sozinha.
+
+Mais três conferências do mesmo dia:
+- **Sem UPX, conferido pelas seções PE:** as 7 seções são `.text`, `.rdata`, `.data`,
+  `.pdata`, `.fptable`, `.rsrc` e `.reloc` — nenhuma `UPX0`/`UPX1`. É assim que se
+  confere; procurar a string "UPX" no binário não serve.
+- **Varredura do Defender no arquivo, com proteção em tempo real ligada: nenhuma ameaça.**
+  Isso **não** cobre o SmartScreen, que é reputação na nuvem disparada pelo Mark of the Web
+  e depende de o arquivo ter sido baixado.
+- **Nenhum dos 76 módulos carregados vem da instalação de Python nem do `.venv`.**
+  `python314.dll` e `VCRUNTIME140.dll` saem de dentro do pacote. É a evidência mais forte
+  possível nesta máquina de que o `.exe` não precisa de Python — mas não fecha o assunto:
+  DLL carregada só depois (numa notificação, na consulta de disco) não apareceria aqui.
+
 **Ainda sem verificação (não dá para fazer na máquina de desenvolvimento):** o `.exe` rodando
-num Windows **sem Python instalado**, e uma verificação completa do Defender.
+num Windows **sem Python instalado**, e uma verificação completa do Defender — este último
+com o arquivo **baixado pelo navegador**, não com o de `dist/`.
 
 ## Persistência de estado
 - Nada é gravado em disco na v1.
@@ -575,10 +671,10 @@ todas devem ser resolvidas na etapa de setup, antes da primeira spec.
 
 - ~~`ruff` configurado mas não instalado~~ → **resolvido em 26/08/2026**: `ruff>=0.16.4,<0.17.0`
   entrou como dependência de desenvolvimento e rodou.
-- **30 linhas passam de 88 caracteres** (medido em 26/08/2026, no fim da v2). Delas, 17 são
-  *strings* e 3 são comentários — formatador não quebra nenhum dos dois. Sobram **10 linhas
-  de código**, em `pdh.py`, `placa_video.py`, `thresholds.py`, `inicializacao.py`, `app.py` e
-  `bandeja.py`. Vale saber por que o `ruff check` passa mesmo assim: a regra de linha longa
+- **29 linhas passam de 88 caracteres** (medido em 05/09/2026; eram 30 no fim da v2, e os
+  módulos novos da v2.1.0 não acrescentaram nenhuma). Delas, 3 são comentários e o resto são
+  quase todas *strings* e docstrings — formatador não quebra nenhum dos dois. Vale saber
+  por que o `ruff check` passa mesmo assim: a regra de linha longa
   (E501) **não está no conjunto padrão**, e o `line-length = 88` só orienta o formatador.
   Quem quiser tratar isso como erro precisa ligar a regra explicitamente.
 - **Os construtores couberam.** Ao fim da v2, `ui/app.py.__init__` tem 26 linhas (era 44) e
@@ -632,9 +728,11 @@ Regra: **lógica coberta, fronteira mockada.**
   passa aqui é teste que mente para quem baixar.
 
 ---
-**Encerrado em:** 2026-08-26
-**Versão:** v2.0.0
-**Testes:** 363 passando
+**Encerrado em:** 2026-08-26 (v2.0.0)
+**Reaberto em:** 2026-09-05 para a v2.1.0 — publicação e três defeitos que só aparecem na
+máquina de quem baixa: janela sem ícone próprio, duas instâncias ao mesmo tempo e a entrada
+do boot apontando para o caminho antigo.
+**Versão:** v2.1.0 (no código; Release ainda não publicado)
+**Testes:** 392 passando
 **Specs concluídas:** 7 de 7 (a spec 2 passou por uma revisão)
-**Commits:** 21
-**Período:** 2026-05-17 a 2026-08-26 (4 dias ativos)
+**Período:** 2026-05-17 a 2026-09-05

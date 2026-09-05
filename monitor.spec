@@ -25,7 +25,12 @@ a = Analysis(
     ["main.py"],
     pathex=[],
     binaries=[],
-    datas=[(str(_CUSTOMTKINTER), "customtkinter")],
+    datas=[
+        (str(_CUSTOMTKINTER), "customtkinter"),
+        # O `icon=` lá embaixo é o ícone do arquivo no Explorer. Este aqui é o da
+        # janela aberta: são coisas diferentes, e a janela lê o arquivo em execução.
+        ("assets/icone.ico", "assets"),
+    ],
     hiddenimports=[
         # O plyer escolhe a implementação em tempo de execução, por nome — o PyInstaller
         # não enxerga essa importação analisando o código.

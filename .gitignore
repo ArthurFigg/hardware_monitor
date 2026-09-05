@@ -9,3 +9,6 @@ build/
 .env
 preview.py
 .ruff_cache/
+
+# Anotações locais para a postagem — não fazem parte do projeto.
+post-linkedin.txt

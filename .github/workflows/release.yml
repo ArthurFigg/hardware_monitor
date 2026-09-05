@@ -1,0 +1,104 @@
+name: Release
+
+# Empurrar uma tag `vX.Y.Z` gera o executável e publica o Release com ele anexado.
+#
+# `workflow_dispatch` existe porque a tag da v2.0.0 foi empurrada antes deste workflow
+# existir — sem ele, a única forma de publicar aquele Release seria apagar e recriar a
+# tag, que reescreve história já publicada.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag já existente a publicar (ex: v2.0.0)"
+        required: true
+
+# O passo de publicar escreve no repositório; o token padrão só lê.
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    # O app é Windows-only e o executável precisa nascer no sistema em que vai rodar.
+    # O workflow de testes continua no Linux, de propósito — ver CLAUDE.md.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Conferir que a versão bate em todos os lugares
+        shell: bash
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          versao="${tag#v}"
+          IFS=. read -r maior menor correcao <<< "$versao"
+          tupla="($maior, $menor, $correcao, 0)"
+
+          erro=0
+          conferir() {
+            grep -q "$1" "$2" || { echo "::error::$3"; erro=1; }
+          }
+          conferir "^version = \"$versao\"$" pyproject.toml \
+            "pyproject.toml não declara a versão $versao"
+          conferir "filevers=$tupla" versao.txt \
+            "versao.txt: filevers não é $tupla"
+          conferir "prodvers=$tupla" versao.txt \
+            "versao.txt: prodvers não é $tupla"
+          conferir "\"FileVersion\", \"$versao\"" versao.txt \
+            "versao.txt: FileVersion não é $versao"
+          conferir "\"ProductVersion\", \"$versao\"" versao.txt \
+            "versao.txt: ProductVersion não é $versao"
+          exit $erro
+
+      - name: Conferir as medidas obrigatórias de build
+        shell: bash
+        # Sem UPX e com identificação embutida são o que evita o antivírus marcar o
+        # arquivo. São duas linhas fáceis de apagar sem perceber, e o sintoma só
+        # aparece na máquina de quem baixou.
+        run: |
+          # Ancorado no começo da linha porque as duas medidas também aparecem no
+          # comentário do topo do monitor.spec — sem a âncora, apagar a linha de
+          # verdade e deixar o comentário passaria na conferência.
+          erro=0
+          grep -qE "^ +upx=False,$" monitor.spec || {
+            echo "::error::monitor.spec sem upx=False"; erro=1; }
+          grep -qE "^ +version=\"versao.txt\",$" monitor.spec || {
+            echo "::error::monitor.spec sem version=\"versao.txt\""; erro=1; }
+          exit $erro
+
+      - run: uv sync
+
+      - run: uv run pyinstaller monitor.spec --noconfirm
+
+      - name: Gerar o hash do arquivo
+        shell: bash
+        # Publicado ao lado do executável para quem quiser conferir que baixou o
+        # arquivo que este workflow gerou, e não outro.
+        working-directory: dist
+        run: sha256sum MonitorDeHardware.exe > MonitorDeHardware.exe.sha256
+
+      - name: Publicar o Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          versao="${tag#v}"
+
+          # As notas saem da seção do CHANGELOG desta versão: imprime da linha do
+          # cabeçalho dela até o próximo cabeçalho de versão.
+          awk -v alvo="## [$versao]" \
+            'index($0, alvo)==1 {p=1; next} p && /^## / {exit} p' \
+            CHANGELOG.md > notas.md
+
+          arquivos="dist/MonitorDeHardware.exe dist/MonitorDeHardware.exe.sha256"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" $arquivos --clobber
+          else
+            gh release create "$tag" $arquivos --title "$tag" --notes-file notas.md
+          fi

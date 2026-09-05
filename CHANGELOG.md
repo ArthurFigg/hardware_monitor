@@ -5,6 +5,21 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+## [2.1.0] — 2026-09-05
+
+### Adicionado
+- A janela e o botão na barra de tarefas agora usam o ícone do programa. Antes o
+  Windows mostrava o ícone padrão do Tk, e o programa aberto não se parecia com o
+  arquivo que a pessoa tinha baixado
+- Abrir o programa quando ele já está rodando passa a mostrar a janela que já existe,
+  em vez de subir uma segunda cópia. Com o "abrir junto com o Windows" ligado, essa era
+  a situação normal: dois ícones ao lado do relógio e notificação em dobro
+
+### Corrigido
+- Mover o executável de pasta depois de ligar o "abrir junto com o Windows" deixava o
+  programa de fora do boot em silêncio, com o interruptor ainda marcado. Agora o
+  caminho é corrigido sozinho na abertura seguinte
+
 ## [2.0.0] — 2026-08-26
 
 ### Adicionado

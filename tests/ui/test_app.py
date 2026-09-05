@@ -1,3 +1,4 @@
+import tkinter
 from contextlib import ExitStack, contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -796,14 +797,14 @@ def test_sair_fecha_a_janela(_, raiz):
 def test_clique_no_icone_passa_pela_thread_do_tkinter(_, raiz):
     """Mexer em widget fora da thread principal trava ou corrompe a interface calado."""
     with _app_com_bandeja(raiz) as tela:
-        tela.app._pedir_para_abrir()
+        tela.app.pedir_para_abrir()
         assert tela.agendar.call_args.args[0] == 0
 
 
 @patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
 def test_clique_no_icone_nao_toca_a_janela_direto(_, raiz):
     with _app_com_bandeja(raiz) as tela:
-        tela.app._pedir_para_abrir()
+        tela.app.pedir_para_abrir()
         tela.mostrar.assert_not_called()
 
 
@@ -949,3 +950,36 @@ def test_iniciar_coleta_sobe_thread_daemon(_, raiz):
     with patch("ui.app.threading.Thread") as thread:
         app.iniciar_coleta()
         assert thread.call_args.kwargs["daemon"] is True
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_janela_recebe_o_icone_do_app(_, raiz):
+    """Sem isto a janela usa o ícone do Tk e não parece com o arquivo baixado."""
+    from ui.app import AplicativoMonitor
+
+    with patch.object(raiz, "iconbitmap") as icone:
+        AplicativoMonitor(raiz)._rodando = False
+    assert icone.call_args.args[0].endswith("icone.ico")
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_icone_ausente_nao_e_pedido_ao_tk(_, raiz):
+    """Arquivo esquecido no empacotamento: a janela abre sem ícone, não quebra."""
+    from ui.app import AplicativoMonitor
+
+    with (
+        patch.object(ui.app.caminhos, "arquivo", return_value=None),
+        patch.object(raiz, "iconbitmap") as icone,
+    ):
+        AplicativoMonitor(raiz)._rodando = False
+    icone.assert_not_called()
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_icone_recusado_pelo_tk_nao_derruba_a_janela(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    with patch.object(raiz, "iconbitmap", side_effect=tkinter.TclError):
+        app = AplicativoMonitor(raiz)
+        app._rodando = False
+    assert app._cards

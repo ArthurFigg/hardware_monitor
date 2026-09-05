@@ -32,10 +32,11 @@ fazer. Se estiver tudo verde, não há nada a fazer.
 
 Esta é a forma normal de usar: **não precisa instalar Python nem nada**.
 
-1. Baixe o `MonitorDeHardware.exe`.
+1. Baixe o `MonitorDeHardware.exe` na [página de versões](https://github.com/ArthurFigg/hardware_monitor/releases/latest).
 2. Coloque onde quiser — Documentos, Área de Trabalho, uma pasta sua. O programa **não tem
-   instalador**: não escreve em `Arquivos de Programas`, não aparece em "Adicionar ou
-   remover programas". Desinstalar é apagar o arquivo.
+   instalador**: não escreve em `Arquivos de Programas` e não aparece em "Adicionar ou
+   remover programas". Se depois você mudar o arquivo de pasta, ele se ajusta sozinho na
+   abertura seguinte.
 3. Clique duas vezes.
 
 **Na primeira vez o Windows vai mostrar um aviso de segurança** ("O Windows protegeu o seu
@@ -49,6 +50,12 @@ Depois de aberto:
   continua vigiando. Na primeira vez que isso acontece, o app avisa.
 - Para **abrir de novo**, clique no ícone.
 - Para **encerrar de verdade**, clique com o botão direito no ícone e escolha **Sair**.
+
+**Para desinstalar:** desligue o interruptor "Abrir junto com o Windows" na janela,
+escolha **Sair** no menu do ícone e apague o arquivo. Desligar o interruptor antes de
+apagar é a parte que importa — é a única coisa que o programa deixa registrada fora da
+própria pasta. Sobra ainda uma pasta minúscula em
+`%LOCALAPPDATA%\MonitorDeHardware`, com uma linha de texto; apagar é opcional.
 
 O programa **não pede senha de administrador** e **não acessa a internet**.
 
@@ -66,7 +73,7 @@ uv sync
 uv run main.py
 ```
 
-Para gerar o executável distribuível:
+Para gerar o executável e testá-lo localmente:
 
 ```bash
 uv run pyinstaller monitor.spec --noconfirm
@@ -74,6 +81,10 @@ uv run pyinstaller monitor.spec --noconfirm
 
 Sai em `dist/MonitorDeHardware.exe`, arquivo único de cerca de 20 MB. O `.exe` precisa
 estar fechado antes de reconstruir — o Windows trava o arquivo em execução.
+
+**O executável que se distribui não é esse.** Empurrar uma tag `vX.Y.Z` faz o GitHub
+Actions compilar num Windows limpo e publicar o Release com o arquivo e o hash SHA-256
+anexados. Gerando à mão, o que se publica é o que alguém lembrou de reconstruir.
 
 ## Arquitetura
 
@@ -134,9 +145,11 @@ hardware_monitor/
 │   ├── bandeja.py     # ícone ao lado do relógio
 │   └── components/    # cartão e semáforo
 ├── sistema/           # integração com o Windows fora da leitura de hardware
-│   ├── inicializacao.py  # entrada na chave Run (abrir com o Windows)
-│   ├── estado.py         # o pouco que o app lembra, em %LOCALAPPDATA%
-│   └── uptime.py         # há quanto tempo a máquina está ligada
+│   ├── inicializacao.py   # entrada na chave Run (abrir com o Windows)
+│   ├── instancia_unica.py # uma cópia por vez; a segunda mostra a janela da primeira
+│   ├── caminhos.py        # onde estão os arquivos do app, empacotado ou não
+│   ├── estado.py          # o pouco que o app lembra, em %LOCALAPPDATA%
+│   └── uptime.py          # há quanto tempo a máquina está ligada
 ├── notifications/     # notificações do sistema
 ├── recursos.py        # o que o app vigia e o que ele diz sobre cada coisa
 ├── main.py            # ponto de entrada
@@ -192,7 +205,7 @@ hardware_monitor/
 uv run pytest -v
 ```
 
-São 363 testes, rodando em cerca de 8 segundos. A regra é **lógica coberta, fronteira
+São 392 testes, rodando em cerca de 7 segundos. A regra é **lógica coberta, fronteira
 mockada**: toda regra de decisão tem teste com valores simulados, e leitura real de
 hardware é sempre substituída por mock. Ficam sem teste automatizado, por não serem
 testáveis, o desenho do ícone da bandeja e o comportamento dos contadores do Windows em

@@ -48,16 +48,25 @@ def comando() -> str:
     return f'"{interpretador}" "{script}" {ARGUMENTO_MINIMIZADO}'
 
 
-def ativado() -> bool:
-    """Se a entrada existe agora. Leitura que falha responde 'não', nunca levanta erro."""
+def valor_gravado() -> str | None:
+    """O comando que está na chave `Run` agora, ou None se não há entrada.
+
+    Leitura que falha responde None, nunca levanta erro: política corporativa negando
+    leitura do registro não pode virar exceção na abertura da janela.
+    """
     if winreg is None:
-        return False
+        return None
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, CHAVE_RUN) as chave:
-            winreg.QueryValueEx(chave, NOME_ENTRADA)
-        return True
+            valor, _ = winreg.QueryValueEx(chave, NOME_ENTRADA)
+        return valor
     except OSError:
-        return False
+        return None
+
+
+def ativado() -> bool:
+    """Se a entrada existe agora."""
+    return valor_gravado() is not None
 
 
 def ativar() -> bool:
@@ -92,6 +101,31 @@ def desativar() -> bool:
         return True
     except OSError:
         return False
+
+
+def sincronizar() -> bool:
+    """Reescreve a entrada quando ela aponta para outro caminho. Devolve se reescreveu.
+
+    O programa não tem instalador, então nada impede a pessoa de arrastar o executável
+    para outra pasta depois de ligar o interruptor. Sem isto o app some do boot sem dar
+    sinal nenhum, e o interruptor segue marcado dizendo que está tudo certo — que é a
+    falha silenciosa que a regra do projeto proíbe.
+
+    Entrada que não existe fica como está: ausência é a resposta "não quero", não um
+    caminho desatualizado.
+
+    Só vale rodando pelo executável. Rodando pelo código, a correção estragaria a
+    entrada de quem também usa o programa empacotado nesta máquina: um teste em
+    desenvolvimento apontaria a chave `Run` para uma pasta de projeto que a pessoa não
+    usa no dia a dia.
+    """
+    if not _empacotado():
+        return False
+
+    gravado = valor_gravado()
+    if gravado is None or gravado == comando():
+        return False
+    return ativar()
 
 
 def iniciado_minimizado(argumentos=None) -> bool:

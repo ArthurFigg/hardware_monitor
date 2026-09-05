@@ -138,3 +138,50 @@ def test_iniciado_minimizado_com_o_argumento():
 
 def test_iniciado_minimizado_sem_o_argumento():
     assert not inicializacao.iniciado_minimizado([])
+
+
+def test_valor_gravado_devolve_o_comando(registro):
+    registro.QueryValueEx.return_value = (r'"C:\Programas\app.exe" --minimizado', 1)
+    assert inicializacao.valor_gravado() == r'"C:\Programas\app.exe" --minimizado'
+
+
+def test_valor_gravado_sem_entrada_devolve_none(registro):
+    registro.OpenKey.side_effect = FileNotFoundError
+    assert inicializacao.valor_gravado() is None
+
+
+@patch.object(inicializacao, "_empacotado", return_value=True)
+def test_sincronizar_reescreve_quando_o_caminho_mudou(_, registro):
+    """A pessoa arrastou o executável para outra pasta depois de ligar o interruptor."""
+    registro.QueryValueEx.return_value = (r'"D:\antiga\app.exe" --minimizado', 1)
+    assert inicializacao.sincronizar()
+    assert registro.SetValueEx.call_args.args[4] == inicializacao.comando()
+
+
+@patch.object(inicializacao, "_empacotado", return_value=True)
+def test_sincronizar_nao_mexe_quando_o_caminho_confere(_, registro):
+    registro.QueryValueEx.return_value = (inicializacao.comando(), 1)
+    assert not inicializacao.sincronizar()
+
+
+@patch.object(inicializacao, "_empacotado", return_value=True)
+def test_sincronizar_nao_cria_entrada_que_nao_existia(_, registro):
+    """Ausência é a resposta 'não quero abrir com o Windows', não caminho velho."""
+    registro.OpenKey.side_effect = FileNotFoundError
+    assert not inicializacao.sincronizar()
+    registro.SetValueEx.assert_not_called()
+
+
+@patch.object(inicializacao, "_empacotado", return_value=True)
+def test_sincronizar_com_escrita_bloqueada_devolve_falha(_, registro):
+    registro.QueryValueEx.return_value = (r'"D:\antiga\app.exe" --minimizado', 1)
+    registro.SetValueEx.side_effect = PermissionError
+    assert not inicializacao.sincronizar()
+
+
+def test_sincronizar_rodando_pelo_codigo_nao_mexe_no_registro(registro):
+    """Teste em desenvolvimento não pode roubar a entrada do programa empacotado."""
+    registro.QueryValueEx.return_value = (r'"C:\Programaspp.exe" --minimizado', 1)
+    with patch.object(inicializacao, "_empacotado", return_value=False):
+        assert not inicializacao.sincronizar()
+    registro.SetValueEx.assert_not_called()

@@ -1,4 +1,5 @@
 import threading
+import tkinter
 
 import customtkinter as ctk
 
@@ -7,7 +8,7 @@ from hardware.processos import programa_dominante
 from hardware.thresholds import RastreadorAlerta, Status, menos_grave
 from notifications.manager import GerenciadorNotificacoes
 from recursos import RECURSOS, pior_status
-from sistema import estado, inicializacao, uptime
+from sistema import caminhos, estado, inicializacao, uptime
 from ui.bandeja import Bandeja
 from ui.components.cards import CartaoRecurso
 
@@ -55,7 +56,7 @@ class AplicativoMonitor(ctk.CTkFrame):
         self._criar_rodape()
 
         self._bandeja = Bandeja(
-            ao_abrir=self._pedir_para_abrir, ao_sair=self._pedir_para_sair
+            ao_abrir=self.pedir_para_abrir, ao_sair=self._pedir_para_sair
         )
 
         self._organizar()
@@ -66,6 +67,23 @@ class AplicativoMonitor(ctk.CTkFrame):
         master.title("Monitor de Hardware")
         master.resizable(False, False)
         master.protocol("WM_DELETE_WINDOW", self._ao_fechar)
+        self._aplicar_icone(master)
+
+    def _aplicar_icone(self, master: ctk.CTk) -> None:
+        """Ícone da janela e do botão na barra de tarefas.
+
+        Sem isto o Tk usa o ícone dele, e o programa aberto não se parece com o arquivo
+        que a pessoa baixou. Num executável sem assinatura digital isso custa caro: o
+        aviso do Windows já pede confiança, e janela com cara de genérica não ajuda.
+        """
+        icone = caminhos.arquivo(caminhos.ICONE)
+        if icone is None:
+            return
+        try:
+            master.iconbitmap(str(icone))
+        except tkinter.TclError:
+            # Ícone é enfeite: arquivo que o Tk recusar não impede a janela de abrir.
+            pass
 
     def _criar_cards(self) -> dict:
         return {
@@ -295,8 +313,11 @@ class AplicativoMonitor(ctk.CTkFrame):
         cartao.atualizar(status_exibido, vista)
         cartao.definir_clicavel(recurso.total_de_vistas(valor) > 1)
 
-    def _pedir_para_abrir(self) -> None:
-        """Chamado da thread do `pystray` — nunca toca widget direto.
+    def pedir_para_abrir(self) -> None:
+        """Chamado de fora da thread do Tkinter — nunca toca widget direto.
+
+        Duas origens hoje: o clique no ícone ao lado do relógio e a segunda instância
+        do app pedindo a janela desta.
 
         Mexer em widget do Tkinter de fora da thread principal trava ou corrompe a
         interface em silêncio. O `after(0, ...)` serializa a chamada na thread certa.
