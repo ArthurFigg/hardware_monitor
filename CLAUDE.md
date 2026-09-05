@@ -428,7 +428,7 @@ As 7 specs aprovadas, na ordem:
 
 Depois delas, como projeto à parte: histórico persistente e resumo das últimas N horas.
 
-**Leva seguinte, aberta em 05/09/2026** (também em `aprovados.txt`): `C1` — esconder o
+**Leva seguinte, aberta em 05/09/2026** (também em `aprovados.txt`): `D3` — esconder o
 cartão de placa de vídeo na máquina que não tem placa. Veio do teste no Windows Sandbox,
 onde o cartão apareceu marcando 0% com a GPU desligada. **O critério não é "está em 0%"** —
 placa de verdade ociosa também marca 0%, e esconder por valor trocaria um cartão inútil por
@@ -553,12 +553,18 @@ Mais três conferências do mesmo dia:
 
 ### Prova em Windows limpo (05/09/2026)
 
-**O `.exe` do Release abre num Windows sem Python.** Está provado, e a prova se repete: o
-teste roda no **Windows Sandbox**, que é recurso do próprio Windows 11 Pro — uma máquina
-limpa e descartável, sem instalar nada. Ligar o recurso exige reiniciar; depois disso basta
-abrir um arquivo `.wsb` que mapeia uma pasta com o `.exe` e um script, e outra pasta para o
-relatório sair. Não é preciso um segundo computador, e a suposição contrária ficou escrita
-aqui por engano — o item constou como "não dá para fazer na máquina de desenvolvimento".
+**O `.exe` do Release abre num Windows sem Python.** O teste rodou no **Windows Sandbox**,
+que é recurso do próprio Windows 11 Pro — uma máquina limpa e descartável, sem instalar
+nada. Ligar o recurso exige reiniciar uma vez; depois disso, abrir um arquivo `.wsb` que
+mapeia uma pasta com o `.exe` e um script, mais outra pasta para o relatório sair. Não é
+preciso um segundo computador, e a suposição contrária ficou escrita aqui por engano — o
+item constou como "não dá para fazer na máquina de desenvolvimento".
+
+**O script que produziu esta prova não foi guardado** (decidido em 05/09/2026). Repetir o
+teste numa versão futura significa escrevê-lo de novo: ele copia o `.exe` para dentro,
+procura Python de quatro formas, abre o programa, mede o tempo até a janela, lista de onde
+vem cada DLL carregada e tira uma foto da tela. O caminho está descrito acima; o trabalho
+é reescrever, não redescobrir.
 
 Medido dentro do Sandbox (Windows 11 Enterprise build 26100), com o binário do Release
 (SHA-256 `aae88aee…`, o mesmo publicado):

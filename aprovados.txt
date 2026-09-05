@@ -343,9 +343,11 @@ Descartados: B4  card de bateria — app se declara para PC DE MESA.
 
 ===============================================================================
 LEVA SEGUINTE (aberta em 2026-09-05, depois da v2.1.0)
+Identificadores: A0-A14, B1-B8, C1-C8 e D1-D2 ja estao em uso no ideias.txt.
+Item novo comeca em D3.
 ===============================================================================
 
-C1  Esconder o card de placa de video na maquina que nao tem placa.
+D3  Esconder o card de placa de video na maquina que nao tem placa.
 
     ORIGEM: teste do .exe no Windows Sandbox em 05/09/2026. O Sandbox roda com a
     GPU desligada e o card apareceu assim mesmo, verde, marcando 0%. Nao quebrou
