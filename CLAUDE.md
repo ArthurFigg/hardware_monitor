@@ -6,10 +6,8 @@ resta são as verificações que dependem do arquivo baixado:
 
 - [x] ~~**Publicar a v2.1.0**~~ — feito em 05/09/2026.
 - [x] ~~**Deixar o CI verde**~~ — feito em 05/09/2026. Ver "Ressalva sobre o CI".
-- [ ] **Rodar o `.exe` baixado do Release num Windows sem Python instalado.** É a única
-      prova de que o empacotamento cumpriu o objetivo. Se falhar, o mais provável é
-      faltar algum arquivo no `datas` do `monitor.spec` — o sintoma é o `.exe` abrir e
-      morrer sem mensagem.
+- [x] ~~**Rodar o `.exe` baixado do Release num Windows sem Python instalado.**~~ — feito
+      em 05/09/2026, no Windows Sandbox. Ver "Prova em Windows limpo".
 - [ ] **Testar o SmartScreen.** Dá para simular aqui, sem outra máquina: marcar o arquivo
       como baixado e abrir.
       ```powershell
@@ -538,9 +536,40 @@ Mais três conferências do mesmo dia:
   possível nesta máquina de que o `.exe` não precisa de Python — mas não fecha o assunto:
   DLL carregada só depois (numa notificação, na consulta de disco) não apareceria aqui.
 
-**Ainda sem verificação (não dá para fazer na máquina de desenvolvimento):** o `.exe` rodando
-num Windows **sem Python instalado**, e uma verificação completa do Defender — este último
-com o arquivo **baixado pelo navegador**, não com o de `dist/`.
+### Prova em Windows limpo (05/09/2026)
+
+**O `.exe` do Release abre num Windows sem Python.** Está provado, e a prova se repete: o
+teste roda no **Windows Sandbox**, que é recurso do próprio Windows 11 Pro — uma máquina
+limpa e descartável, sem instalar nada. Ligar o recurso exige reiniciar; depois disso basta
+abrir um arquivo `.wsb` que mapeia uma pasta com o `.exe` e um script, e outra pasta para o
+relatório sair. Não é preciso um segundo computador, e a suposição contrária ficou escrita
+aqui por engano — o item constou como "não dá para fazer na máquina de desenvolvimento".
+
+Medido dentro do Sandbox (Windows 11 Enterprise build 26100), com o binário do Release
+(SHA-256 `aae88aee…`, o mesmo publicado):
+
+- **Sem Python de nenhuma forma:** os comandos `python`, `python3`, `py` e `pythonw` não
+  existem, não há `HKLM\SOFTWARE\Python` nem `HKCU\SOFTWARE\Python`, não há pasta
+  `C:\Python*` e não há `python*.dll` no `System32`. Quatro checagens porque uma só engana:
+  na máquina de desenvolvimento o comando `python` também "não existe" (o que responde por
+  ele é um atalho de 0 byte da Microsoft Store) e mesmo assim há cinco Pythons instalados.
+- **A janela abriu em 1,4 s**, com ícone próprio, 370x647, e o ícone entrou na bandeja.
+- **83 módulos carregados. Fora do `C:\Windows`, só seis** — e os seis saem de dentro do
+  pacote (`_MEI…`): `python314.dll`, `python3.dll`, `tcl90.dll`, `tcl9tk90.dll`,
+  `VCRUNTIME140.dll` e `VCRUNTIME140_1.dll`. Nada foi buscado numa instalação de Python,
+  porque não havia nenhuma para buscar. Isso fecha a ressalva antiga de que uma DLL
+  carregada tarde poderia não aparecer: aqui não haveria de onde ela vir.
+- **Os cinco cartões leram a máquina** e nenhum quebrou: CPU 0%, RAM 45%, Disco C: 3%,
+  Temperatura ~35°C, Placa de vídeo 0%. O contador de disco não mostrou "(n/n)", correto
+  para uma máquina de uma unidade só.
+
+**Observação, não defeito:** o Sandbox roda com a GPU desligada e o cartão de placa de vídeo
+ainda assim apareceu, marcando 0% em verde. Ele não quebrou — que é a regra —, mas também
+não sumiu. Vale decidir depois se cartão que só sabe dizer 0% deveria se esconder; num PC
+sem placa dedicada de verdade o contador pode se comportar diferente do que se viu aqui.
+
+**Ainda sem verificação:** uma verificação completa do Defender, com o arquivo **baixado
+pelo navegador** e não com o de `dist/`, e o aviso do SmartScreen.
 
 ## Persistência de estado
 - Nada é gravado em disco na v1.
