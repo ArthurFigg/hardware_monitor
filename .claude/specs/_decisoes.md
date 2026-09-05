@@ -73,14 +73,23 @@ local; quando a tradução vier vazia, usar o nome em inglês.
 **Descartado:** escrever o nome traduzido direto no código — funciona só na máquina de quem
 escreveu.
 
-## A notificação passa a sair do ícone da bandeja, não da biblioteca atual
+## A notificação continua na biblioteca atual, e o clique é no ícone
 
-**Contexto:** a biblioteca de notificação usada hoje dispara o aviso e esquece — não há como
-saber se alguém clicou. O resumo de uso planejado depende justamente disso: notificação
-curta que abre uma tela ao ser clicada.
-**Decisão:** quando o ícone da bandeja existir, a notificação passa a sair dele, que detecta
-o clique. O app deixa de depender da biblioteca atual para isso.
-**Descartado:** manter a biblioteca e abrir mão do clique, o que mataria o resumo de uso.
+**Contexto:** a biblioteca de notificação dispara o aviso e esquece — não há como saber se
+alguém clicou. Em agosto de 2026 isso foi lido como impedimento para o resumo de uso, que
+seria aberto clicando na notificação, e a decisão registrada aqui mandava trocar a
+biblioteca por chamada própria ao Windows.
+**Decisão (revista em 05/09/2026):** a biblioteca fica. A premissa caiu — **o clique no
+ícone da bandeja já abre a janela desde a spec 5**, então o caminho que o resumo precisava
+já existe: a notificação avisa, a pessoa clica no ícone ao lado do relógio, a tela abre.
+**Verificado no `pystray` 0.19.5 instalado:** ele tem `notify()` e usa o mesmo
+`Shell_NotifyIcon` que se pensava escrever à mão, mas **também não trata clique no balão** —
+`NIN_BALLOONUSERCLICK` nem está definido em `_util/win32.py`, só `WM_LBUTTONUP` e
+`WM_RBUTTONUP`, que são cliques no ícone. Trocar não compraria o clique.
+**Descartado:** escrever `Shell_NotifyIcon` à mão. Reescreveria código que funciona, e
+notificação saindo pela bandeja morreria junto com ela — que pode não subir, e o projeto já
+trata esse caso ("Sem bandeja no ar, fechar volta a encerrar").
+**Custo aceito:** um clique a mais, no ícone em vez de no aviso.
 
 ## Python 3.14 fica, em vez de voltar para uma versão mais assentada
 
@@ -94,16 +103,21 @@ processo, por isso a fixture de root é compartilhada pela suíte inteira).
 **Custo aceito:** ao acrescentar dependência nova, conferir suporte a 3.14 antes — não é
 garantido como seria numa versão mais antiga.
 
-## O CI roda em Linux, mesmo o app sendo só para Windows
+## O CI roda em Windows — a tentativa de rodar em Linux falhou
 
-**Contexto:** o app depende de coisas que só existem no Windows — chave do registro, contadores
-de desempenho, consulta de disco. O runner gratuito e rápido é Linux.
-**Decisão:** rodar os testes em Linux mesmo assim. Isso só funciona porque toda fronteira com o
-sistema é mockada, e é exatamente essa a regra de testes do projeto.
-**Custo aceito:** nenhum teste pode tocar o Windows de verdade. Na prática isso vira uma trava
-útil: CI vermelho por causa de chamada real ao sistema significa teste que não deveria existir.
-O que não é testável assim (ícone da bandeja, superaquecimento físico, contador em outra
-máquina) já está declarado como verificação manual.
+**Contexto:** o app depende de coisas que só existem no Windows, e o runner gratuito e rápido
+é Linux. A aposta registrada aqui era que, como toda fronteira com o sistema é mockada, a
+suite rodaria em qualquer lugar.
+**Decisão (corrigida em 05/09/2026):** o runner é `windows-latest`. A aposta não se sustentou
+e o CI ficou vermelho de 27/08 a 05/09/2026 sem que ninguém olhasse — as v2.0.0 e v2.1.0
+foram lançadas assim. Mock não alcança duas coisas que não são teste: **`hardware/pdh.py` faz
+`from ctypes import wintypes` no topo**, que só existe no Windows, então o módulo nem carrega;
+e **os testes de UI criam um root CTk de verdade**, que precisa de tela. Em `windows-latest` os
+392 passam.
+**Descartado:** manter Linux e pular o que depende do Windows — esvaziaria a suíte.
+**Custo aceito:** runner Windows é mais lento que o Linux. A regra de mockar fronteira continua
+valendo por si; ela só nunca serviu para tornar a suíte portátil, que era a leitura errada
+registrada aqui.
 
 ## Um lugar só descreve cada recurso, e a tela não conhece recurso por nome
 

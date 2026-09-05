@@ -555,16 +555,31 @@ D2. DUAS TEMPERATURAS NA TELA: CPU E GPU  >>> PEDIDO DO USUARIO (26/08/2026)
     A spec 6 ja esta aprovada e entrega USO, nao temperatura. Fica como esta nesta
     versao; entra na proxima.
 
-    O QUE PRECISA SER RESOLVIDO ANTES DE VIRAR SPEC — e a razao de ter caido antes:
-    temperatura de GPU nao sai de contador do Windows nem do psutil. Exige a
-    biblioteca do FABRICANTE, e o caminho muda conforme a placa:
-      - NVIDIA: existe caminho limpo em Python (biblioteca oficial de gerenciamento).
-      - AMD: nao ha equivalente maduro em Python puro. O caminho usual passa por
-        programa externo em C#, o que traz dependencia pesada para um app que hoje
-        so usa stdlib e psutil.
-    A maquina do usuario parece ter placa AMD (ha entrada de audio AMD na lista de
-    inicializacao), mas ISSO NAO FOI VERIFICADO. Primeiro passo da proxima sessao:
-    descobrir qual e a placa. A resposta decide se a ideia e barata ou cara.
+    SONDADO EM 2026-09-05 — a duvida "qual e a placa" esta respondida, e a resposta
+    fecha a ideia por ora. A placa e uma AMD Radeon RX 7600 (unica, geracao RDNA3).
+    Os dois caminhos foram testados nesta maquina, com script descartavel:
+
+      - atiadlxx.dll (ADL antigo, o caminho BARATO): carrega por ctypes, abre com
+        ADL2_Main_Control_Create e ENUMERA a placa corretamente (5 indices, todos
+        "AMD Radeon RX 7600"). Mas TODA leitura de temperatura recusa:
+        ADL2_New_QueryPMLogData_Get devolve -8 (nao suportado) e
+        ADL2_OverdriveN_Temperature_Get / ADL2_Overdrive6_Temperature_Get devolvem
+        -5 (indice invalido), em todos os indices. O Overdrive antigo nao cobre
+        RDNA3. Nao e configuracao errada: a biblioteca reconhece a placa e recusa.
+
+      - amdadlx64.dll (ADLX novo, o caminho QUE SUPORTA): os pontos de entrada
+        existem (ADLXInitialize, ADLXQueryFullVersion, ADLXTerminate, verificados).
+        Mas ADLX e interface de vtable no estilo COM: do Python significa montar
+        tabela virtual a mao em ctypes, passo a passo, ate chegar no sensor.
+
+    O QUE MATA NAO E O TRABALHO, E O MODO DE FALHAR: errar uma vtable nao levanta
+    excecao, DERRUBA O PROCESSO. A regra central do projeto e "leitura que falha
+    esconde a si mesma, nunca quebra o app", e try/except nao pega isso. Um .exe que
+    fecha sozinho na maquina de um estranho e exatamente o que essa regra impede.
+
+    SE ENTRAR MESMO ASSIM: spec propria, com a sondagem em PROCESSO SEPARADO, para a
+    queda nao atingir o app. E continua valendo o problema de baixo: uma temperatura
+    medida ao lado de uma inventada, sem a tela dizer qual e qual.
 
     ATENCAO A DUAS COISAS QUE JA FORAM DECIDIDAS E CONTINUAM VALENDO:
       - Regra de distribuicao: leitura que falha esconde a si mesma. Num PC com placa
