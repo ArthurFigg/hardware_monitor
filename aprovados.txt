@@ -339,3 +339,42 @@ Descartados: B4  card de bateria — app se declara para PC DE MESA.
              A6  botao de acao no card (fechar o processo mais pesado e propor fechar
                  justamente o que o usuario foi usar).
              A12 janela sempre por cima (desnecessaria; C6 e a versao boa da ideia).
+
+
+===============================================================================
+LEVA SEGUINTE (aberta em 2026-09-05, depois da v2.1.0)
+===============================================================================
+
+C1  Esconder o card de placa de video na maquina que nao tem placa.
+
+    ORIGEM: teste do .exe no Windows Sandbox em 05/09/2026. O Sandbox roda com a
+    GPU desligada e o card apareceu assim mesmo, verde, marcando 0%. Nao quebrou
+    — a regra 2 de DISTRIBUICAO foi respeitada — mas card que so sabe dizer 0% e
+    ocupacao inutil de tela, que e exatamente o motivo pelo qual a bateria ficou
+    de fora.
+
+    O CRITERIO NAO E "ESTA EM 0%". Placa de verdade ociosa tambem marca 0%: quem
+    esta lendo um documento veria o card sumir. Esconder por valor zero troca um
+    card inutil por um card que pisca, que e pior.
+
+    O QUE JA EXISTE: hardware/placa_video.py devolve None quando o contador nao
+    abre (uso() -> _obter_contador() is None) e quando ele nao lista instancia
+    nenhuma (agregar() com leituras vazias). Nos dois casos o card ja some hoje.
+    O caso novo e o terceiro: o contador ABRE, LISTA instancias, e todas ficam
+    paradas em zero para sempre.
+
+    PROPOSTA A DECIDIR NA SPEC — nenhuma esta escolhida:
+      (a) Decidir uma vez, na partida: observar os primeiros N segundos; se o
+          maior motor nunca saiu de 0.0, esconde o card pelo resto da execucao e
+          nao volta atras. Nao pisca, mas erra em quem abriu o app e so foi mexer
+          no PC 10 minutos depois.
+      (b) Olhar o nome das instancias em vez do valor: adaptador de software
+          (WARP / Basic Render) tem nome proprio. Mais preciso, mas depende de
+          nome que pode mudar e ainda nao foi verificado em maquina nenhuma.
+      (c) Nao fazer nada: talvez o caso so exista em maquina virtual. PC real sem
+          placa dedicada TEM integrada, e ali o contador responde com numero real
+          — o proprio docstring de uso() ja diz isso. Sandbox nao e o publico.
+
+    A VERIFICAR ANTES DE ESPECIFICAR: o que o contador lista num Windows real sem
+    placa dedicada. Sem esse dado, (a) e (b) sao chute e (c) pode ser a resposta
+    certa. Nao foi medido em maquina nenhuma ate agora.

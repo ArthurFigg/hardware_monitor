@@ -1,33 +1,39 @@
 ## Próxima sessão — começar por aqui
 
-A v2.1.0 **está publicada** (05/09/2026): a tag está no remoto, o workflow `release.yml`
-rodou e o Release traz o `MonitorDeHardware.exe` (21,3 MB) e o `.sha256` anexados. O que
-resta são as verificações que dependem do arquivo baixado:
+**A v2.1.0 está publicada e verificada; a distribuição está encerrada por decisão.** O
+Release traz o `MonitorDeHardware.exe` (21,3 MB) e o `.sha256`, o CI está verde e o
+executável foi provado num Windows limpo. **O próximo trabalho é o projeto novo — histórico
+persistente e resumo das últimas N horas**, projeto à parte, não spec desta base.
+
+O que foi feito em 05/09/2026:
 
 - [x] ~~**Publicar a v2.1.0**~~ — feito em 05/09/2026.
 - [x] ~~**Deixar o CI verde**~~ — feito em 05/09/2026. Ver "Ressalva sobre o CI".
 - [x] ~~**Rodar o `.exe` baixado do Release num Windows sem Python instalado.**~~ — feito
       em 05/09/2026, no Windows Sandbox. Ver "Prova em Windows limpo".
-- [ ] **Testar o SmartScreen.** Dá para simular aqui, sem outra máquina: marcar o arquivo
-      como baixado e abrir.
-      ```powershell
-      Set-Content "MonitorDeHardware.exe:Zone.Identifier" "[ZoneTransfer]`nZoneId=3"
-      ```
-      A varredura do Defender no arquivo já foi feita em 05/09/2026 e passou limpa — o que
-      falta é o aviso de reputação, que é outro mecanismo.
-- [ ] **Passar o `.exe` por uma verificação completa do Defender.** Testar o arquivo
-      **baixado pelo navegador**, não o de `dist/`: baixado, o Windows o marca (*Mark of
-      the Web*) e o SmartScreen se comporta diferente — testar o de `dist/` testaria o
-      caso mais fácil. Se for **bloqueado ou posto em quarentena**, aciona o plano B: o
-      formato muda para pasta compactada em `.zip`. Lentidão na partida **não** aciona o
-      plano B — já foi aceita.
-- [ ] **Enviar o `.exe` para análise da Microsoft** (gratuito, reduz o SmartScreen). Vale
-      só para aquele arquivo exato — cada versão nova precisa ser enviada de novo, e por
-      isso vem depois das duas verificações acima: se o plano B mudar o formato, o envio
-      anterior morre junto.
 
-Depois disso, o projeto seguinte: **histórico persistente e resumo das últimas N horas** —
-projeto à parte, não spec desta base.
+### Guardado por decisão em 05/09/2026 — não é pendência
+
+Os três itens abaixo **saíram da fila**. O executável abre e roda, que era o que importava;
+o que resta é reputação, não funcionamento. Só voltam se o gatilho aparecer.
+
+- **SmartScreen.** O arquivo em `Downloads` já está marcado como baixado
+  (`Zone.Identifier` com `ZoneId=3`), então basta clicar nele para ver o aviso. Ele
+  aparecer é o **esperado** e já foi aceito: acontece com qualquer executável sem
+  assinatura digital, e é uma vez só.
+- **Verificação completa do Defender.** A varredura do arquivo já passou limpa em
+  05/09/2026; o que falta é a completa, com o arquivo marcado. **Gatilho do plano B:** se
+  algum dia o `.exe` for **bloqueado ou posto em quarentena** com o Defender ativo, o
+  formato muda para pasta compactada em `.zip`. Lentidão na partida não aciona nada — já
+  foi aceita.
+- **Enviar o `.exe` para análise da Microsoft.** Gratuito e reduz o SmartScreen, mas vale
+  só para aquele arquivo exato — cada versão nova pede envio novo. Fazer isso a cada
+  release, antes de haver quem baixe, é trabalho recorrente sem retorno medido.
+
+**O que faria isso voltar para a fila:** alguém relatar que não conseguiu abrir o programa,
+ou que desistiu no aviso do Windows. Aí o problema deixa de ser hipótese e a assinatura
+digital passa de "depois" para "necessária" — o risco já estava registrado em
+"Distribuição".
 
 ## Projeto
 Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, RAM, Disco e Temperatura estimada em indicadores visuais simples (sistema de semáforo) para usuários não-técnicos.
@@ -421,6 +427,15 @@ As 7 specs aprovadas, na ordem:
 7. ~~Empacotar em `.exe` (depende do caminho definido na spec 4)~~ — **concluída em 2026-08-26**
 
 Depois delas, como projeto à parte: histórico persistente e resumo das últimas N horas.
+
+**Leva seguinte, aberta em 05/09/2026** (também em `aprovados.txt`): `C1` — esconder o
+cartão de placa de vídeo na máquina que não tem placa. Veio do teste no Windows Sandbox,
+onde o cartão apareceu marcando 0% com a GPU desligada. **O critério não é "está em 0%"** —
+placa de verdade ociosa também marca 0%, e esconder por valor trocaria um cartão inútil por
+um que pisca. O caso novo é o contador abrir, listar instâncias e todas ficarem paradas em
+zero; hoje o cartão já some nos outros dois (contador não abre, ou não lista nada). Falta
+medir o que o contador lista num Windows real sem placa dedicada — sem esse dado, talvez a
+resposta certa seja não fazer nada.
 
 **Três ideias foram descartadas resolvendo contradições que existiam neste arquivo:**
 - Gráfico de linha: contrariava a regra de UI/UX. A regra fica, o item saiu.
