@@ -1,10 +1,11 @@
 ## Próxima sessão — começar por aqui
 
-A v2.1.0 está pronta no código e **ainda não foi publicada**. O passo seguinte é publicar
-o Release, e só depois as verificações que dependem dele:
+A v2.1.0 **está publicada** (05/09/2026): a tag está no remoto, o workflow `release.yml`
+rodou e o Release traz o `MonitorDeHardware.exe` (21,3 MB) e o `.sha256` anexados. O que
+resta são as verificações que dependem do arquivo baixado:
 
-- [ ] **Publicar a v2.1.0**: commitar, criar a tag `v2.1.0` e empurrar. O workflow de
-      release gera o `.exe` e anexa sozinho.
+- [x] ~~**Publicar a v2.1.0**~~ — feito em 05/09/2026.
+- [x] ~~**Deixar o CI verde**~~ — feito em 05/09/2026. Ver "Ressalva sobre o CI".
 - [ ] **Rodar o `.exe` baixado do Release num Windows sem Python instalado.** É a única
       prova de que o empacotamento cumpriu o objetivo. Se falhar, o mais provável é
       faltar algum arquivo no `datas` do `monitor.spec` — o sintoma é o `.exe` abrir e
@@ -652,7 +653,7 @@ name: Tests
 on: [push, pull_request]
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -660,10 +661,18 @@ jobs:
       - run: uv run pytest -v
 ```
 
-**Ressalva sobre o CI:** o runner é Linux e o app é Windows-only — leitura de registro,
-contadores PDH e `Get-PhysicalDisk` não existem lá. Isso só funciona porque a regra de testes
-do projeto manda mockar toda fronteira de sistema; se algum teste tocar o Windows de verdade,
-ele quebra no CI. É uma trava útil: CI vermelho aqui significa teste que não devia existir.
+**O runner é Windows, e a tentativa de rodar no Linux falhou — não repetir.** O CI nasceu
+em `ubuntu-latest` apostando que a regra de mockar toda fronteira de sistema bastaria para a
+suite rodar em qualquer lugar. Não bastou, e ficou vermelho de 27/08 a 05/09/2026 sem que
+ninguém olhasse: as v2.0.0 e v2.1.0 foram lançadas assim. A aposta ignorava duas coisas que
+não são teste e por isso nenhum mock alcança — **`hardware/pdh.py` faz `from ctypes import
+wintypes` no topo**, que só existe no Windows, então o módulo nem carrega; e **os testes de
+UI criam um root CTk de verdade**, que precisa de tela, e o runner Linux não tem uma.
+
+A premissa que estava escrita aqui — "CI vermelho significa teste que não devia existir" —
+era falsa: quem não roda no Linux é o código de produção, não o teste. Em `windows-latest`
+os 392 passam. A regra de mockar fronteira continua valendo por si; ela só nunca serviu para
+tornar a suite portátil.
 
 ## Qualidade — dívidas conhecidas (levantadas em 25/08/2026)
 Achadas comparando o projeto com as regras do CLAUDE.md global. Nenhuma é urgente;
