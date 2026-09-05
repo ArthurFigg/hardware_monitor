@@ -1,13 +1,36 @@
 ## Próxima sessão — começar por aqui
 
+> **Sessão pausada em 05/09/2026.** A próxima ação é uma só e está abaixo.
+
+## ► Rodar `/spec-review`
+
+As três specs do projeto novo estão escritas e **nenhuma foi revisada** — todas nascem com
+`**Revisão:** pendente`, e a regra do projeto é que spec pendente não é implementada. O
+`/spec-review` lê as três juntas, procura conflito e dependência e propõe a ordem.
+
+| Spec | O que faz | Score |
+|---|---|---|
+| `08-historico-persistente` | grava; nada aparece na tela | 5 |
+| `09a-leitura-do-periodo` | lê o período e diz se o resumo é devido; sem tela | 4 |
+| `09b-tela-de-resumo` | avisa e mostra | 5 |
+
+Elas foram cortadas assim porque juntas passavam do limite de tamanho da skill. As duas de
+cima são consumidas **sem edição** pelas de baixo — o mesmo arranjo de `pdh.py` entre as
+specs 3 e 6.
+
+Depois do review, implementar na ordem com `/implementar`, uma por vez, com `pytest`
+passando antes de avançar.
+
+---
+
 **A v2.1.0 está publicada e verificada; a distribuição está encerrada por decisão.** O
 Release traz o `MonitorDeHardware.exe` (21,3 MB) e o `.sha256`, o CI está verde e o
 executável foi provado num Windows limpo.
 
-**O trabalho em curso é o projeto novo: histórico persistente e resumo das últimas N horas**
-(itens `C1` e `C3` do `aprovados.txt`). A triagem de 25/08/2026 já fixou a gravação — SQLite
-da biblioteca padrão, em `%LOCALAPPDATA%`, uma média por minuto, 90 dias de retenção; medido
-em 5,1 MB para os 90 dias. **Quatro pontos foram decididos em 05/09/2026 e vencem o que o
+**O projeto em curso é o novo: histórico persistente e resumo das últimas N horas** (itens
+`C1` e `C3` do `aprovados.txt`). A triagem de 25/08/2026 já fixou a gravação — SQLite da
+biblioteca padrão, em `%LOCALAPPDATA%`, uma média por minuto, 90 dias de retenção; medido em
+5,1 MB para os 90 dias. **Quatro pontos foram decididos em 05/09/2026 e vencem o que o
 `aprovados.txt` dizia antes:**
 
 1. **O tempo contado é de PC ligado**, não de app aberto.
@@ -72,7 +95,7 @@ Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, 
 - pyinstaller 6.22.2 — empacotamento em `.exe` (desenvolvimento)
 - uv — gerenciador de dependências (`uv run`, `uv add`)
 
-## Estado atual — v2 concluída; v2.1.0 pronta no código, Release ainda não publicado
+## Estado atual — v2.1.0 publicada; specs do projeto seguinte escritas e não revisadas
 
 A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 12 aprovadas, 11 adiadas, 7 descartadas. O plano vive em dois arquivos na raiz:
 - `aprovados.txt` — o que fazer, agrupado em specs, com os achados técnicos de cada uma
@@ -84,9 +107,12 @@ mesmo dia, para o cartão de Disco trocar de unidade por clique.
 
 A v2.0.0 foi encerrada e marcada em 26/08/2026. Em 05/09/2026 o projeto foi reaberto para
 resolver a distribuição — publicação pelo GitHub Actions e três defeitos que só aparecem na
-máquina de quem baixa — e o resultado é a v2.1.0, pronta no código e ainda não publicada.
-Ver a seção de abertura deste arquivo. Depois disso, como projeto à parte: histórico
-persistente e resumo das últimas N horas.
+máquina de quem baixa — e o resultado é a **v2.1.0, publicada, verificada e encerrada** no
+mesmo dia.
+
+Ainda em 05/09/2026, o projeto seguinte foi especificado: **histórico persistente e resumo
+das últimas N horas**, em três specs (`08`, `09a`, `09b`), todas com revisão pendente.
+Nenhuma linha de código dele existe. Ver a seção de abertura deste arquivo.
 
 Para rodar:
 
@@ -808,7 +834,9 @@ Regra: **lógica coberta, fronteira mockada.**
 **Reaberto em:** 2026-09-05 para a v2.1.0 — publicação e três defeitos que só aparecem na
 máquina de quem baixa: janela sem ícone próprio, duas instâncias ao mesmo tempo e a entrada
 do boot apontando para o caminho antigo.
-**Versão:** v2.1.0 (no código; Release ainda não publicado)
-**Testes:** 392 passando
-**Specs concluídas:** 7 de 7 (a spec 2 passou por uma revisão)
+**Versão:** v2.1.0 — publicada, verificada e encerrada em 05/09/2026
+**Testes:** 392 passando (em ~7 s, e verdes também no CI, que passou a rodar em Windows)
+**Specs concluídas:** 7 de 7 da v2 (a spec 2 passou por uma revisão)
+**Specs escritas e não revisadas:** 3 — `08`, `09a` e `09b`, do projeto de histórico
+**Próxima ação:** `/spec-review` sobre as três
 **Período:** 2026-05-17 a 2026-09-05
