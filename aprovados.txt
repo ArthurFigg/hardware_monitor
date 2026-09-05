@@ -319,7 +319,44 @@ C3. Resumo das ultimas N horas de uso  [depende de C1 e de A13]
     abrem com o Windows e como desliga-los, quantos programas abertos, modelo e
     saude dos discos). Nao deixar virar HWiNFO: poucas linhas, sem jargao, cada uma
     com o que fazer a respeito.
-    A DEFINIR: contar tempo de PC ligado (preferido) ou de app aberto.
+
+    ---------------------------------------------------------------------------
+    DECIDIDO EM 2026-09-05 — quatro pontos acima estao VENCIDOS. Vale o que segue.
+    ---------------------------------------------------------------------------
+
+    1. TEMPO CONTADO: PC ligado, nao app aberto.
+
+    2. N E FIXO, nao ajustavel. O texto acima diz "ajustavel" e isso contraria a
+       secao Configuracao do CLAUDE.md, que diz que o app nao tem configuracao
+       pelo usuario e que isso e decisao, nao esquecimento. Mesmo argumento dos
+       limiares: para escolher um bom N a pessoa precisa saber o que e um bom N, e
+       quem sabe isso nao precisa deste app.
+
+    3. O PLYER FICA. NAO escrever Shell_NotifyIcon a mao. O texto acima manda
+       abandonar o plyer porque ele nao detecta clique na notificacao — mas isso
+       so importa se o clique tiver que ser NO BALAO. O CLIQUE NO ICONE DA BANDEJA
+       JA ABRE A JANELA, entregue na spec 5. O caminho ja existe: a notificacao
+       avisa, a pessoa clica no icone ao lado do relogio, a tela abre. Custo
+       aceito: um clique a mais, no icone em vez de no aviso.
+
+       VERIFICADO no pystray instalado (0.19.5): ele TEM notify() e usa o mesmo
+       Shell_NotifyIcon (NIF_INFO) que a triagem queria escrever a mao, entao um
+       dia da para largar o plyer e ficar com uma dependencia a menos. Mas ele
+       NAO trata clique no balao — a constante NIN_BALLOONUSERCLICK nem esta
+       definida em _util/win32.py, so WM_LBUTTONUP e WM_RBUTTONUP, que sao cliques
+       no icone. Ou seja: trocar nao compra o clique. E notificacao saindo pela
+       bandeja morre junto com ela, enquanto o plyer hoje e independente — e a
+       bandeja pode nao subir (ver "Sem bandeja no ar" no CLAUDE.md). Limpeza para
+       depois, fora deste projeto.
+
+    4. A SEGUNDA TELA E SO O RESUMO. O diagnostico da maquina SAI deste projeto e
+       vira o seguinte. Ele responde outra pergunta — "o que esta mal configurado
+       aqui", nao "o que aconteceu com meu PC" — e a prova de que sao projetos
+       separados e que ELE NAO USA O HISTORICO PARA NADA: poderia ter sido feito
+       antes de qualquer gravacao existir. Junto, o primeiro release fica grande e
+       o aviso "nao deixar virar HWiNFO" logo acima vira profecia. Custo aceito:
+       quando o diagnostico entrar, as duas telas precisam parecer a mesma
+       familia — resolve-se construindo a moldura uma vez, agora.
 
 
 ===============================================================================

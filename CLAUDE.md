@@ -2,8 +2,25 @@
 
 **A v2.1.0 está publicada e verificada; a distribuição está encerrada por decisão.** O
 Release traz o `MonitorDeHardware.exe` (21,3 MB) e o `.sha256`, o CI está verde e o
-executável foi provado num Windows limpo. **O próximo trabalho é o projeto novo — histórico
-persistente e resumo das últimas N horas**, projeto à parte, não spec desta base.
+executável foi provado num Windows limpo.
+
+**O trabalho em curso é o projeto novo: histórico persistente e resumo das últimas N horas**
+(itens `C1` e `C3` do `aprovados.txt`). A triagem de 25/08/2026 já fixou a gravação — SQLite
+da biblioteca padrão, em `%LOCALAPPDATA%`, uma média por minuto, 90 dias de retenção; medido
+em 5,1 MB para os 90 dias. **Quatro pontos foram decididos em 05/09/2026 e vencem o que o
+`aprovados.txt` dizia antes:**
+
+1. **O tempo contado é de PC ligado**, não de app aberto.
+2. **O N é fixo, não ajustável** — "ajustável" contrariava a seção Configuração, e o
+   argumento é o mesmo dos limiares.
+3. **O plyer fica, e não se escreve `Shell_NotifyIcon` à mão.** A triagem mandava trocar
+   porque o plyer não detecta clique na notificação, mas isso só importaria se o clique
+   fosse no balão — **o clique no ícone da bandeja já abre a janela desde a spec 5**.
+   Verificado no `pystray` instalado: ele tem `notify()` e usa o mesmo mecanismo, mas
+   também não trata clique no balão, então trocar não compraria nada; e notificação pela
+   bandeja morreria junto com ela, que hoje pode não subir.
+4. **A segunda tela é só o resumo.** O diagnóstico da máquina sai deste projeto e vira o
+   seguinte — ele não usa o histórico para nada, e essa é a prova de que são separados.
 
 O que foi feito em 05/09/2026:
 
