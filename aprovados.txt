@@ -283,7 +283,7 @@ projeto. Nao e mudanca pequena.
 PROJETO SEGUINTE — HISTORICO  (depois das 6 specs; muda a arquitetura)
 ===============================================================================
 
-C1. Guardar o historico
+C1. Guardar o historico  [CONCLUIDO em 2026-09-12, spec 08]
     Hoje o app nao grava nada. Passa a gravar. SQLite ja vem com o Python: zero
     dependencia nova. Destrava C3 e, se um dia voltarem, A8/B5.
 

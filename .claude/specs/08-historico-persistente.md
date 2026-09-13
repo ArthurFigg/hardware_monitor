@@ -178,3 +178,18 @@ a leitura da spec 09a ter o que ler.
 - **Melhorias — ver `aprovados.txt`** → marcar o `C1` como concluído.
 - **Testes** → atualizar a contagem (hoje 392).
 - **Stack** → nenhuma mudança; `sqlite3` é da biblioteca padrão e não é dependência nova.
+
+---
+**Status:** concluida em 2026-09-12
+
+**Divergência registrada na implementação:** `recursos.py` ganhou dois campos além do
+`grava_historico` que esta spec listou — `valor_fn` (o número que representa a leitura,
+usado no pico do episódio) e `amostras_fn` (as linhas de histórico da leitura, uma por
+unidade no Disco). Sem eles, `ui/app.py` ou o gravador precisaria saber que o Disco
+carrega `unidades` e a Placa carrega `uso` — formato de recurso vazando para fora de
+`recursos.py`, contra a decisão transversal do projeto. Os dois seguem o padrão de
+`causa_fn` e `vista_fn`, que já existiam.
+
+**Decidido durante a implementação:** o episódio de alerta do Disco é **um por recurso**,
+com o pico da **pior unidade** — não um episódio por unidade. A pior unidade é a de pior
+status, nunca a de maior percentual, como o CLAUDE.md já registrava para o cartão.

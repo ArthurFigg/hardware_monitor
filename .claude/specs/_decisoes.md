@@ -241,3 +241,35 @@ testes: cada objeto construído registra algo de verdade no sistema, com uma thr
 instância, e a suite trava sem dizer por quê.
 **Custo aceito:** o ponto de entrada precisa lembrar de fazer a chamada, e há um teste
 existindo só para garantir que ninguém devolva a chamada para o construtor.
+
+
+## Quem abre o banco é o único que escreve SQL, e quem decide recebe linhas prontas
+
+**Contexto:** o app passou a guardar histórico em disco, e o que se quer dele não é a linha
+crua: é a média do período, o pico, os episódios recortados numa janela de tempo. Escrever
+essa consulta no mesmo módulo que aplica a regra é o caminho curto, e funciona — até a
+segunda pergunta, quando metade da regra está em SQL e metade em Python, e ninguém sabe
+mais onde procurar um número errado.
+**Decisão:** um módulo só abre o arquivo, cria as tabelas e devolve linhas por janela de
+tempo; nenhuma instrução SQL existe fora dele. Quem calcula média, recorta episódio ou
+decide que algo é devido recebe as linhas prontas e nunca toca no banco. Há teste que
+falha se aparecer SQL fora do lugar.
+**Descartado:** deixar a consulta abrir o banco por conta. Parece economia de uma camada;
+na prática duplica o tratamento de banco indisponível em cada consulta nova.
+**Custo aceito:** o módulo de dados ganha um método por pergunta que as camadas de cima
+fazem, e cresce junto com elas.
+
+## O que o app não mediu vira registro de ausência, nunca um valor
+
+**Contexto:** o histórico só é escrito enquanto o programa roda, e o período que interessa
+a quem usa é de computador ligado. Sem nada gravado, as duas coisas se confundem: dez horas
+de máquina ligada com o programa aberto por quatro viram "dez horas medidas", e a média sai
+de um pedaço fingindo ser o todo.
+**Decisão:** o tempo em que a máquina esteve ligada sem o programa é gravado como uma
+lacuna — diz quando começou e quando terminou, e não carrega valor nenhum. Toda leitura do
+período informa quanto do período foi de fato medido, e média e pico saem só dessa parte.
+O mesmo vale para recurso que não existe na máquina: devolve ausência, não zero.
+**Descartado:** ignorar o tempo sem medição, que era mais simples e tornava a promessa de
+"últimas N horas de computador ligado" impossível de cumprir.
+**Custo aceito:** toda tela que mostra o período carrega dois números em vez de um, e
+precisa explicá-los sem jargão.

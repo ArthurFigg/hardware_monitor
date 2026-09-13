@@ -53,10 +53,16 @@ class Recurso:
     vista_fn: Callable[[object, object], object] | None = None
     linha_extra_fn: Callable[[object], str] | None = None
     detalhe_fn: Callable[[object], str] | None = None
+    valor_fn: Callable[[object], float] | None = None
+    amostras_fn: Callable[[object], list] | None = None
     causa_padrao: str = CAUSA_PADRAO
     notifica: bool = True
     varre_processos: bool = False
     pode_sumir: bool = False
+    # A Temperatura é a única falsa: ela é o percentual de CPU convertido, e gravá-la
+    # seria guardar o mesmo número duas vezes. O campo existe para o gravador não
+    # precisar comparar nome de recurso (spec 08).
+    grava_historico: bool = True
 
     def descricao(self, status: Status, causa: str | None = None) -> str:
         """Texto do cartão. Status sem texto cai no do NORMAL em vez de quebrar.
@@ -68,6 +74,25 @@ class Recurso:
         return por_causa.get(causa or self.causa_padrao) or next(
             iter(por_causa.values())
         )
+
+    def valor(self, leitura) -> float:
+        """O número que representa esta leitura — o que o pico do episódio guarda.
+
+        Leitura que é o próprio número (CPU, RAM) dispensa a função. Quem carrega um
+        objeto declara de onde tirar o número, e assim nem a tela nem o gravador
+        precisam conhecer o formato de cada recurso.
+        """
+        return leitura if self.valor_fn is None else self.valor_fn(leitura)
+
+    def amostras(self, leitura) -> list:
+        """As linhas de histórico desta leitura: `(valor, unidade, livre_gb)`.
+
+        Quase todo recurso dá uma linha por minuto. O Disco dá uma por unidade fixa —
+        sem isso não daria para dizer quanto cada disco encheu no período.
+        """
+        if self.amostras_fn is None:
+            return [(self.valor(leitura), None, None)]
+        return self.amostras_fn(leitura)
 
     def descricao_de(self, status: Status, valor=None) -> str:
         """Texto do cartão já resolvido para esta leitura.
@@ -261,6 +286,13 @@ DISCO = Recurso(
     linha_extra_fn=_linha_desgaste,
     detalhe_fn=_detalhe_disco,
     vista_fn=lambda leitura, indice: leitura.vista(indice),
+    # O pico do episódio é o da pior unidade, que é quem decidiu o status. O histórico
+    # guarda uma linha por unidade, porque a pior troca de unidade no meio do período.
+    valor_fn=lambda leitura: getattr(leitura.pior_unidade, "percentual", 0.0),
+    amostras_fn=lambda leitura: [
+        (unidade.percentual, unidade.ponto, unidade.livre_gb)
+        for unidade in leitura.unidades
+    ],
     causa_padrao=CAUSA_ESPACO,
     descricoes={
         Status.NORMAL: {
@@ -325,6 +357,7 @@ TEMPERATURA = Recurso(
         reduzindo=dados.reduzindo,
     ),
     formatar_valor=_valor_temperatura,
+    valor_fn=lambda leitura: _celsius(leitura),
     linha_extra_fn=_aviso_reducao,
     descricoes={
         Status.NORMAL: {
@@ -348,6 +381,7 @@ TEMPERATURA = Recurso(
             )
         }
     },
+    grava_historico=False,
 )
 
 PLACA_VIDEO = Recurso(
@@ -356,6 +390,7 @@ PLACA_VIDEO = Recurso(
     classificar=classificar_placa_video,
     extrair=lambda dados: dados.placa,
     formatar_valor=lambda leitura: f"{getattr(leitura, 'uso', 0.0):.0f}%",
+    valor_fn=lambda leitura: getattr(leitura, "uso", 0.0),
     # Nunca chega a Alerta, então não notifica: notificação só existe em Alerta. E some
     # da tela quando o contador não responde — sem leitura não há número para mostrar.
     notifica=False,

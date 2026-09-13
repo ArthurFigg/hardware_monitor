@@ -291,3 +291,9 @@ def test_placa_de_video_sem_texto_de_alerta():
 def test_placa_no_limite_manda_baixar_a_qualidade():
     texto = PLACA_VIDEO.descricao(Status.ATENCAO)
     assert "qualidade gráfica" in texto
+
+
+def test_apenas_temperatura_nao_grava_historico():
+    """`grava_historico` é verdadeiro por padrão e falso só na Temperatura (spec 08)."""
+    sem_historico = {r.nome for r in RECURSOS if not r.grava_historico}
+    assert sem_historico == {"temperatura"}

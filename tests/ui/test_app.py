@@ -983,3 +983,55 @@ def test_icone_recusado_pelo_tk_nao_derruba_a_janela(_, raiz):
         app = AplicativoMonitor(raiz)
         app._rodando = False
     assert app._cards
+
+
+# --- costura com o gravador do histórico (spec 08) -----------------------------------
+#
+# `historico/gravacao.py` ainda não existe. A costura é só em `ui/app.py`: o gravador
+# chega pronto de fora (nulo por padrão) e o laço de coleta entrega a ele cada valor
+# extraído e cada status já confirmado pelo `RastreadorAlerta`, um por recurso e por
+# ciclo — mesmo ponto onde `_atualizar_cards` já calcula os dois hoje.
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_sem_gravador_atualizar_cards_nao_quebra(_, raiz):
+    """`gravador` é nulo por padrão — a app não pode depender dele para funcionar."""
+    from ui.app import AplicativoMonitor
+
+    app = AplicativoMonitor(raiz)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+    assert app._cards["cpu"].status_atual == Status.NORMAL
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_gravador_recebe_o_valor_extraido_de_cada_recurso(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    gravador = MagicMock()
+    app = AplicativoMonitor(raiz, gravador=gravador)
+    app._rodando = False
+    app._atualizar_cards(DadosHardware(cpu=42.0, ram=20.0, disco=_disco()))
+
+    chamada = next(
+        c for c in gravador.registrar.call_args_list if c.args[0] is recursos.CPU
+    )
+    assert chamada.args[1] == 42.0
+
+
+@patch("ui.app.coletar", return_value=DadosHardware(cpu=10.0, ram=20.0, disco=_disco()))
+def test_gravador_recebe_o_status_ja_confirmado(_, raiz):
+    from ui.app import AplicativoMonitor
+
+    gravador = MagicMock()
+    app = AplicativoMonitor(raiz, gravador=gravador)
+    app._rodando = False
+    app._rastreadores["cpu"] = MagicMock(
+        atualizar=MagicMock(return_value=Status.ALERTA)
+    )
+    app._atualizar_cards(DadosHardware(cpu=95.0, ram=20.0, disco=_disco()))
+
+    chamada = next(
+        c for c in gravador.registrar_status.call_args_list if c.args[0] is recursos.CPU
+    )
+    assert chamada.args[1] == Status.ALERTA

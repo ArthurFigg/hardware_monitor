@@ -5,6 +5,12 @@ e este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Adicionado
+- O monitor passa a guardar no seu computador como a máquina se comportou nos últimos
+  90 dias: uma medição por minuto e, a cada vez que algo ficou pesado, o que estava
+  acontecendo e qual programa estava consumindo. Fica tudo no seu computador e nada é
+  enviado para lugar nenhum. Ainda não aparece na tela — é o que o resumo vai ler
+
 ## [2.1.0] — 2026-09-05
 
 ### Adicionado

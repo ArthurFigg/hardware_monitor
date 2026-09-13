@@ -1,7 +1,28 @@
+import time
+
 import customtkinter as ctk
 
+from hardware.collector import segundos_ligado
+from historico.banco import Banco
+from historico.gravacao import Gravador
 from sistema import inicializacao, instancia_unica
 from ui.app import AplicativoMonitor
+
+
+def _abrir_historico() -> tuple[Banco, Gravador]:
+    """Sobe o histórico e registra o tempo de PC ligado sem o app.
+
+    Banco que não abre devolve indisponível em vez de erro, e o gravador segue aceitando
+    chamadas sem fazer nada: o app roda sem histórico, nunca para por causa dele.
+    """
+    banco = Banco()
+    gravador = Gravador(banco)
+
+    ligado_ha = segundos_ligado()
+    if ligado_ha is not None:
+        gravador.registrar_lacuna(boot_em=time.time() - ligado_ha)
+
+    return banco, gravador
 
 
 def main() -> None:
@@ -18,8 +39,10 @@ def main() -> None:
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
 
+    banco, gravador = _abrir_historico()
+
     raiz = ctk.CTk()
-    monitor = AplicativoMonitor(raiz)
+    monitor = AplicativoMonitor(raiz, gravador=gravador)
     monitor.pack(fill="both", expand=True)
 
     monitor.iniciar_coleta()
@@ -32,6 +55,11 @@ def main() -> None:
         raiz.iconify()
 
     raiz.mainloop()
+
+    # Só a saída limpa fecha. Encerrado pelo Gerenciador de Tarefas, o minuto em curso
+    # se perde — que é o comportamento que a spec escolheu para a média parcial.
+    gravador.fechar()
+    banco.fechar()
 
 
 if __name__ == "__main__":

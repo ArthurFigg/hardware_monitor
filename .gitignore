@@ -12,3 +12,7 @@ preview.py
 
 # Anotações locais para a postagem — não fazem parte do projeto.
 post-linkedin.txt
+
+# Banco do historico: vive em %LOCALAPPDATA%, nunca aqui. Rede de seguranca.
+*.db
+*.sqlite3

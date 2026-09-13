@@ -36,11 +36,14 @@ class AplicativoMonitor(ctk.CTkFrame):
     # que nada tivesse mudado.
     _INTERVALO_UPTIME_MS = 60_000
 
-    def __init__(self, master: ctk.CTk, **kwargs):
+    def __init__(self, master: ctk.CTk, gravador=None, **kwargs):
         super().__init__(master, **kwargs)
 
         self._preparar_janela(master)
 
+        # Nulo por padrão: o histórico é acréscimo, e a janela funciona sem ele. Quem
+        # cria o gravador é o `main.py`, como faz com a bandeja e com a coleta.
+        self._gravador = gravador
         self._rodando = True
         self._dados_pendentes = None
         self._lock = threading.Lock()
@@ -293,8 +296,25 @@ class AplicativoMonitor(ctk.CTkFrame):
                 valor=consumo,
                 leitura=valor,
             )
+            self._gravar(recurso, valor, status, programa)
 
         self._atualizar_bandeja()
+
+    def _gravar(self, recurso, leitura, status: Status, programa) -> None:
+        """Entrega ao histórico a mesma leitura e o mesmo status que a tela usou.
+
+        É aqui, e não no laço de coleta, porque o status confirmado pelo
+        `RastreadorAlerta` e o nome do programa só existem depois desta passagem. O
+        nome vem da varredura que o alerta já fez — o histórico não provoca nenhuma.
+        """
+        if self._gravador is None:
+            return
+
+        for valor, unidade, livre_gb in recurso.amostras(leitura):
+            self._gravador.registrar(recurso, valor, unidade=unidade, livre_gb=livre_gb)
+        self._gravador.registrar_status(
+            recurso, status, recurso.valor(leitura), programa=programa
+        )
 
     def _atualizar_bandeja(self) -> None:
         self._bandeja.atualizar(self.pior_status_atual)

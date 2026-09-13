@@ -1,25 +1,38 @@
 ## Próxima sessão — começar por aqui
 
-> **Sessão pausada em 05/09/2026.** A próxima ação é uma só e está abaixo.
+> **Última sessão em 12/09/2026.** A próxima ação é uma só e está abaixo.
 
-## ► Rodar `/spec-review`
+## ► Implementar a `09a-leitura-do-periodo`
 
-As três specs do projeto novo estão escritas e **nenhuma foi revisada** — todas nascem com
-`**Revisão:** pendente`, e a regra do projeto é que spec pendente não é implementada. O
-`/spec-review` lê as três juntas, procura conflito e dependência e propõe a ordem.
+As três specs do projeto de histórico foram revisadas em 12/09/2026 e estão **aprovadas**.
+A `08` já está implementada e fechada no mesmo dia.
 
-| Spec | O que faz | Score |
-|---|---|---|
-| `08-historico-persistente` | grava; nada aparece na tela | 5 |
-| `09a-leitura-do-periodo` | lê o período e diz se o resumo é devido; sem tela | 4 |
-| `09b-tela-de-resumo` | avisa e mostra | 5 |
+| Spec | O que faz | Score | Estado |
+|---|---|---|---|
+| `08-historico-persistente` | grava; nada aparece na tela | 5 | **concluída em 12/09/2026** |
+| `09a-leitura-do-periodo` | lê o período e diz se o resumo é devido; sem tela | 4 | aprovada |
+| `09b-tela-de-resumo` | notifica e mostra | 5 | aprovada |
 
 Elas foram cortadas assim porque juntas passavam do limite de tamanho da skill. As duas de
 cima são consumidas **sem edição** pelas de baixo — o mesmo arranjo de `pdh.py` entre as
 specs 3 e 6.
 
-Depois do review, implementar na ordem com `/implementar`, uma por vez, com `pytest`
-passando antes de avançar.
+Implementar na ordem com `/implementar`, uma por vez, com `pytest` passando antes de
+avançar.
+
+**O que o `/spec-review` de 12/09/2026 decidiu, e vale para as duas que faltam:**
+
+1. **O período conta tempo de PC ligado, e a `08` grava a lacuna.** O app só mede enquanto
+   roda; o tempo em que ele esteve fechado vira uma linha de lacuna, para o período de 10
+   horas não virar "10 horas de app aberto". A leitura da `09a` devolve quantos dos minutos
+   foram de fato medidos, e média e pico saem só desses.
+2. **O gravador recebe os dados por uma costura em `ui/app.py`**, não pelo `main.py`: o
+   status confirmado e o nome do programa só existem depois de `_atualizar_cards`.
+3. **Sem bandeja no ar, a `09b` põe um botão "Ver resumo" no rodapé** — e só nesse caso. O
+   texto da notificação de resumo não cita o ícone, para servir nas duas máquinas.
+4. **A regra "notificações só disparam em Alerta" passa a dizer notificação _de recurso_.**
+   A do resumo é por tempo decorrido. O que a regra proibia — avisar em Atenção — continua
+   proibido.
 
 ---
 
@@ -95,7 +108,7 @@ Monitor de Hardware Minimalista — app desktop Python que traduz dados de CPU, 
 - pyinstaller 6.22.2 — empacotamento em `.exe` (desenvolvimento)
 - uv — gerenciador de dependências (`uv run`, `uv add`)
 
-## Estado atual — v2.1.0 publicada; specs do projeto seguinte escritas e não revisadas
+## Estado atual — v2.1.0 publicada; a spec 8 do histórico já implementada
 
 A v1 está funcional. Em 25/08/2026 foi feita a triagem de 30 ideias para a v2: 12 aprovadas, 11 adiadas, 7 descartadas. O plano vive em dois arquivos na raiz:
 - `aprovados.txt` — o que fazer, agrupado em specs, com os achados técnicos de cada uma
@@ -111,8 +124,10 @@ máquina de quem baixa — e o resultado é a **v2.1.0, publicada, verificada e 
 mesmo dia.
 
 Ainda em 05/09/2026, o projeto seguinte foi especificado: **histórico persistente e resumo
-das últimas N horas**, em três specs (`08`, `09a`, `09b`), todas com revisão pendente.
-Nenhuma linha de código dele existe. Ver a seção de abertura deste arquivo.
+das últimas N horas**, em três specs (`08`, `09a`, `09b`). Em 12/09/2026 as três foram
+revisadas e aprovadas, e a `08` foi implementada e fechada: **o app já grava**. Falta a
+leitura (`09a`) e a tela (`09b`) — nada disso aparece na interface ainda. Ver a seção de
+abertura deste arquivo.
 
 Para rodar:
 
@@ -120,7 +135,7 @@ Para rodar:
 uv run main.py
 ```
 
-Para rodar os testes (392 testes, todos passando em ~7 s):
+Para rodar os testes (435 testes, todos passando em ~10 s):
 
 ```
 uv run pytest -v
@@ -182,19 +197,29 @@ hardware_monitor/
 │   │                             calor, RastreadorAlerta)
 │   ├── ui/
 │   │   ├── conftest.py         — fixture raiz (CTk, session-scoped)
-│   │   ├── test_app.py         — 82 testes
+│   │   ├── test_app.py         — 85 testes
 │   │   ├── test_bandeja.py     — 20 testes (pystray mockado)
 │   │   ├── test_cards.py       — 18 testes
 │   │   └── test_semaphore.py   — 5 testes
 │   ├── notifications/
 │   │   └── test_manager.py     — 13 testes (mock plyer)
+│   ├── historico/
+│   │   ├── test_banco.py       — 19 testes (banco em pasta temporária)
+│   │   └── test_gravacao.py    — 20 testes (relógio e banco simulados)
 │   ├── sistema/
 │   │   ├── test_inicializacao.py   — 26 testes (winreg mockado)
 │   │   ├── test_instancia_unica.py — 13 testes (kernel32 mockado)
 │   │   ├── test_caminhos.py        — 6 testes (_MEIPASS simulado)
 │   │   ├── test_estado.py          — 8 testes (pasta temporária)
 │   │   └── test_uptime.py          — 6 testes
-│   └── test_recursos.py        — 33 testes (textos, causas, origem única das frases)
+│   └── test_recursos.py        — 34 testes (textos, causas, origem única das frases)
+├── historico/
+│   ├── __init__.py
+│   ├── banco.py          — SQLite em %LOCALAPPDATA%: amostras, episódios e lacunas.
+│                           Todo o SQL do projeto mora aqui; retenção de 90 dias na
+│                           abertura; indisponível é estado, nunca erro
+│   └── gravacao.py       — acumula o minuto em curso e fecha a média na virada, abre e
+│                           fecha episódios de alerta, registra a lacuna de PC ligado
 ├── sistema/
 │   ├── __init__.py
 │   ├── inicializacao.py  — entrada na chave Run do HKCU; caminho resolvido em execução,
@@ -210,7 +235,8 @@ hardware_monitor/
 ├── monitor.spec          — build do PyInstaller: arquivo único, sem terminal, sem UPX
 ├── versao.txt            — identificação embutida no .exe (nome, autor, versão)
 ├── recursos.py           — Recurso: fonte única do que o app vigia e do que ele diz
-├── main.py               — cria CTk root, instancia AplicativoMonitor, chama mainloop()
+├── main.py               — sobe o histórico, cria CTk root, instancia AplicativoMonitor,
+│                           chama mainloop() e fecha o banco na saída limpa
 ├── aprovados.txt         — fila da v2: as 6 specs, com os achados tecnicos de cada uma
 ├── ideias.txt            — historico da triagem, incluindo o que foi recusado e por que
 ├── pyproject.toml
@@ -341,6 +367,22 @@ faz parte do projeto.
   o que o tiraria do boot em silêncio. Rodando pelo código ela fica desligada: um teste em
   desenvolvimento apontaria a chave `Run` para a pasta do projeto, roubando a entrada do
   programa que a pessoa de fato usa.
+- **`Recurso` diz se o recurso é gravado, e de onde sair o número** (spec 8):
+  `grava_historico` (falso só na Temperatura, que é o percentual de CPU convertido),
+  `valor_fn` (o número que representa a leitura — o pico do episódio) e `amostras_fn` (as
+  linhas de histórico da leitura, uma por unidade no Disco). Sem os três, o gravador teria
+  que comparar nome de recurso e saber que o Disco carrega `unidades` e a Placa carrega
+  `uso` — formato de recurso vazando para fora de `recursos.py`. Acrescentar um recurso
+  continua sendo uma entrada, não três.
+- **O laço de coleta entrega cada leitura e cada status confirmado a um gravador recebido
+  de fora**, nulo por padrão, criado no `main.py` — mesma regra da bandeja e da própria
+  coleta. É em `_atualizar_cards` e não em `_loop_coleta` porque o status confirmado pelo
+  `RastreadorAlerta` e o nome do programa só existem depois daquela passagem. O histórico
+  **não provoca varredura de processos**: usa o nome que o alerta já produziu.
+- **O episódio de alerta do Disco é um por recurso, com o pico da pior unidade** — e pior
+  é a de pior status, nunca a de maior percentual. As amostras, essas sim, são uma por
+  unidade: a pior troca de unidade no meio do período, e sem uma linha por disco não daria
+  para dizer quanto cada um encheu.
 - **`Recurso` ganhou `causa_fn`, `linha_extra_fn`, `detalhe_fn` e `descricao_de()`** — o
   Disco é o único que os usa hoje. Sem eles, a variante de texto de desgaste que a spec 1
   escreveu era código morto: não havia caminho que a acionasse. O cartão chama
@@ -470,6 +512,11 @@ As 7 specs aprovadas, na ordem:
 7. ~~Empacotar em `.exe` (depende do caminho definido na spec 4)~~ — **concluída em 2026-08-26**
 
 Depois delas, como projeto à parte: histórico persistente e resumo das últimas N horas.
+Em três specs, revisadas e aprovadas em 12/09/2026:
+8. ~~Histórico persistente: grava amostra por minuto, episódio de alerta e lacuna de PC
+   ligado~~ — **concluída em 2026-09-12**. Fecha o `C1` do `aprovados.txt`.
+9a. Leitura do período: lê o histórico e diz se o resumo é devido — aprovada.
+9b. Tela de resumo: notifica e mostra — aprovada. Fecha o `C3`.
 
 **Leva seguinte, aberta em 05/09/2026** (também em `aprovados.txt`): `D3` — esconder o
 cartão de placa de vídeo na máquina que não tem placa. Veio do teste no Windows Sandbox,
@@ -645,6 +692,14 @@ pelo navegador** e não com o de `dist/`, e o aviso do SmartScreen.
 - O que de fato vai para `%LOCALAPPDATA%` é o `sistema/estado.py`
   (`%LOCALAPPDATA%\MonitorDeHardware\estado.json`), hoje sem conteúdo próprio — ele existe
   para a spec 5 lembrar se já mostrou a mensagem de primeira vez.
+- **Desde a spec 8 há um segundo arquivo:** o banco do histórico, em
+  `%LOCALAPPDATA%\MonitorDeHardware\historico.db`. SQLite da biblioteca padrão, três
+  tabelas (amostras, episódios e lacunas), **90 dias de retenção aplicados na abertura**.
+- **O histórico guarda nome de programa** nos episódios de alerta — o que estava
+  consumindo a máquina quando ela ficou pesada. Fica tudo local e nada é enviado, mas
+  precisa estar escrito: está aqui e no README.
+- **Banco que não abre é estado normal, nunca erro.** O app roda sem histórico; escrita que
+  falha esconde a si mesma, que é a regra de leitura deste projeto aplicada à gravação.
 - A pasta deste projeto está dentro do OneDrive: gravar aqui sincronizaria arquivo sem parar.
 
 ## Ciclo de vida da janela
@@ -764,7 +819,7 @@ UI criam um root CTk de verdade**, que precisa de tela, e o runner Linux não te
 
 A premissa que estava escrita aqui — "CI vermelho significa teste que não devia existir" —
 era falsa: quem não roda no Linux é o código de produção, não o teste. Em `windows-latest`
-os 392 passam. A regra de mockar fronteira continua valendo por si; ela só nunca serviu para
+os 435 passam. A regra de mockar fronteira continua valendo por si; ela só nunca serviu para
 tornar a suite portátil.
 
 ## Qualidade — dívidas conhecidas (levantadas em 25/08/2026)
@@ -834,9 +889,11 @@ Regra: **lógica coberta, fronteira mockada.**
 **Reaberto em:** 2026-09-05 para a v2.1.0 — publicação e três defeitos que só aparecem na
 máquina de quem baixa: janela sem ícone próprio, duas instâncias ao mesmo tempo e a entrada
 do boot apontando para o caminho antigo.
-**Versão:** v2.1.0 — publicada, verificada e encerrada em 05/09/2026
-**Testes:** 392 passando (em ~7 s, e verdes também no CI, que passou a rodar em Windows)
-**Specs concluídas:** 7 de 7 da v2 (a spec 2 passou por uma revisão)
-**Specs escritas e não revisadas:** 3 — `08`, `09a` e `09b`, do projeto de histórico
-**Próxima ação:** `/spec-review` sobre as três
-**Período:** 2026-05-17 a 2026-09-05
+**Reaberto em:** 2026-09-12 para o projeto de histórico persistente e resumo.
+**Versão:** v2.1.0 — publicada, verificada e encerrada em 05/09/2026. O histórico ainda
+não saiu em release nenhuma.
+**Testes:** 435 passando (em ~10 s, e verdes também no CI, que passou a rodar em Windows)
+**Specs concluídas:** 7 de 7 da v2 (a spec 2 passou por uma revisão), mais a `08`
+**Specs aprovadas e não implementadas:** 2 — `09a` e `09b`
+**Próxima ação:** `/implementar 09a-leitura-do-periodo`
+**Período:** 2026-05-17 a 2026-09-12
